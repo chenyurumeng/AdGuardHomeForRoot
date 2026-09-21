@@ -35,6 +35,7 @@ jobs:
           bash -n src/service.sh
           bash -n src/action.sh
           for f in src/scripts/*.sh; do bash -n "$f"; done
+          node --check src/webroot/assets/index.js
           ruby -e 'require "yaml"; YAML.load_file("src/bin/AdGuardHome.yaml"); YAML.load_file("src/instances/domestic/AdGuardHome.yaml"); YAML.load_file("src/instances/foreign/AdGuardHome.yaml")'
           grep -q '^integration_mode=box-dual
         id: vars
