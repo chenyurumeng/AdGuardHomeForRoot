@@ -166,6 +166,7 @@ stop_instance() {
 }
 
 start_dual() {
+  touch "$AGH_DIR/dual.enabled"
   # In box-dual mode AdGuardHomeForRoot never owns DNS iptables.  Box is the
   # sole dispatcher and can safely fall back if either listener is unavailable.
   "$SCRIPT_DIR/iptables.sh" disable >/dev/null 2>&1 || true
@@ -185,6 +186,7 @@ start_dual() {
 }
 
 stop_dual() {
+  rm -f "$AGH_DIR/dual.enabled"
   # Notify Box after each shutdown sequence so it removes redirects to dead
   # listeners.  Domestic falls back to system DNS, foreign to Mihomo :1053.
   stop_instance foreign
