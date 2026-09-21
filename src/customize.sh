@@ -81,7 +81,10 @@ extract_all() {
 }
 
 if [ -d "$AGH_DIR" ]; then
-  info "- ⏹️ Found old version, stopping all AdGuardHome processes..." "- ⏹️ 发现旧版模块，正在停止所有 AdGuardHome 进程..."
+  info "- ⏹️ Found old version, stopping DNS redirection before core processes..." "- ⏹️ 发现旧版模块，先撤销 DNS 重定向再停止核心..."
+  if [ -x "$AGH_DIR/scripts/tool.sh" ]; then
+    "$AGH_DIR/scripts/tool.sh" stop >/dev/null 2>&1 || true
+  fi
   pkill -f "AdGuardHome" || pkill -9 -f "AdGuardHome" 
   info "- 🔄 Do you want to keep the old configuration? (If not, it will be automatically backed up)" "- 🔄 是否保留原来的配置文件？（若不保留则自动备份）"
   info "- 🔊 (Volume Up = Yes, Volume Down = No, 30s no input = Yes)" "- 🔊 （音量上键 = 是, 音量下键 = 否，30秒无操作 = 是）"
@@ -105,6 +108,18 @@ else
   info "- 📦 First time installation, extracting files..." "- 📦 第一次安装，正在解压文件..."
   mkdir -p "$AGH_DIR" "$BIN_DIR" "$SCRIPT_DIR"
   extract_all
+fi
+
+# Migrate keys added by the Box dual-DNS fork when an older settings.conf was kept.
+if [ -f "$AGH_DIR/settings.conf" ]; then
+  grep -q '^integration_mode=' "$AGH_DIR/settings.conf" || echo 'integration_mode=box-dual' >> "$AGH_DIR/settings.conf"
+  grep -q '^domestic_enabled=' "$AGH_DIR/settings.conf" || echo 'domestic_enabled=true' >> "$AGH_DIR/settings.conf"
+  grep -q '^domestic_dns_port=' "$AGH_DIR/settings.conf" || echo 'domestic_dns_port=5591' >> "$AGH_DIR/settings.conf"
+  grep -q '^domestic_web_port=' "$AGH_DIR/settings.conf" || echo 'domestic_web_port=3000' >> "$AGH_DIR/settings.conf"
+  grep -q '^foreign_enabled=' "$AGH_DIR/settings.conf" || echo 'foreign_enabled=true' >> "$AGH_DIR/settings.conf"
+  grep -q '^foreign_dns_port=' "$AGH_DIR/settings.conf" || echo 'foreign_dns_port=5592' >> "$AGH_DIR/settings.conf"
+  grep -q '^foreign_web_port=' "$AGH_DIR/settings.conf" || echo 'foreign_web_port=3001' >> "$AGH_DIR/settings.conf"
+  grep -q '^readonly INSTANCE_DIR=' "$AGH_DIR/settings.conf" || echo 'readonly INSTANCE_DIR="$AGH_DIR/instances"' >> "$AGH_DIR/settings.conf"
 fi
 
 info "- 🔐 Setting permissions..." "- 🔐 设置权限..."
