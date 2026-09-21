@@ -39,6 +39,13 @@ extract_keep_config() {
   unzip -o "$ZIPFILE" "scripts/*" -d $AGH_DIR >/dev/null 2>&1 || {
     error "- ❌ Failed to extract scripts!" "- ❌ 解压脚本文件失败！"
   }
+  # Install any new dual-instance files but never overwrite user instance configs.
+  unzip -o "$ZIPFILE" "instances/*" -x "instances/domestic/AdGuardHome.yaml" "instances/foreign/AdGuardHome.yaml" -d $AGH_DIR >/dev/null 2>&1 || true
+  for inst in domestic foreign; do
+    if [ ! -f "$AGH_DIR/instances/$inst/AdGuardHome.yaml" ]; then
+      unzip -o "$ZIPFILE" "instances/$inst/AdGuardHome.yaml" -d $AGH_DIR >/dev/null 2>&1 || true
+    fi
+  done
   info "- 🛠️ Extracting binary files except configuration..." "- 🛠️ 正在解压二进制文件（不包括配置文件）..."
   unzip -o "$ZIPFILE" "bin/*" -x "bin/AdGuardHome.yaml" -d $AGH_DIR >/dev/null 2>&1 || {
     error "- ❌ Failed to extract binary files!" "- ❌ 解压二进制文件失败！"
@@ -50,6 +57,9 @@ extract_no_config() {
   info "- 💾 Backing up old configuration files with .bak extension..." "- 💾 使用 .bak 扩展名备份旧配置文件..."
   [ -f "$AGH_DIR/settings.conf" ] && mv "$AGH_DIR/settings.conf" "$AGH_DIR/settings.conf.bak"
   [ -f "$AGH_DIR/bin/AdGuardHome.yaml" ] && mv "$AGH_DIR/bin/AdGuardHome.yaml" "$AGH_DIR/bin/AdGuardHome.yaml.bak"
+  for inst in domestic foreign; do
+    [ -f "$AGH_DIR/instances/$inst/AdGuardHome.yaml" ] && mv "$AGH_DIR/instances/$inst/AdGuardHome.yaml" "$AGH_DIR/instances/$inst/AdGuardHome.yaml.bak"
+  done
   extract_all
 }
 
@@ -58,6 +68,8 @@ extract_all() {
   unzip -o "$ZIPFILE" "scripts/*" -d $AGH_DIR >/dev/null 2>&1 || {
     error "- ❌ Failed to extract scripts" "- ❌ 解压脚本文件失败"
   }
+  info "- 🌐 Extracting dual-instance templates..." "- 🌐 正在解压双实例模板..."
+  unzip -o "$ZIPFILE" "instances/*" -d $AGH_DIR >/dev/null 2>&1 || true
   info "- 🛠️ Extracting binary files..." "- 🛠️ 正在解压二进制文件..."
   unzip -o "$ZIPFILE" "bin/*" -d $AGH_DIR >/dev/null 2>&1 || {
     error "- ❌ Failed to extract binary files" "- ❌ 解压二进制文件失败"
