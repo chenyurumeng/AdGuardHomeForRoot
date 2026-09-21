@@ -1,6 +1,15 @@
 . /data/adb/agh/settings.conf
 . /data/adb/agh/scripts/base.sh
 
+# Old installations may preserve an earlier settings.conf without the dual-mode
+# path constants.  Keep runtime paths safe even before settings migration runs.
+AGH_DIR="${AGH_DIR:-/data/adb/agh}"
+BIN_DIR="${BIN_DIR:-$AGH_DIR/bin}"
+SCRIPT_DIR="${SCRIPT_DIR:-$AGH_DIR/scripts}"
+INSTANCE_DIR="${INSTANCE_DIR:-$AGH_DIR/instances}"
+PID_FILE="${PID_FILE:-$AGH_DIR/bin/agh.pid}"
+MOD_PATH="${MOD_PATH:-/data/adb/modules/AdGuardHome}"
+
 startup_timeout="${startup_timeout:-120}"
 integration_mode="${integration_mode:-standalone}"
 domestic_enabled="${domestic_enabled:-true}"
