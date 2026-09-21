@@ -103,11 +103,9 @@
         }
 
         if (!window._loaded) {
-                const kv = l.split('=');
-                if (kv.length === 2) conf[kv[0].trim()] = kv[1].trim();
-            });
             for (let k in elements.fields) {
                 const el = elements.fields[k];
+                if (!el) continue;
                 if (el.type === 'checkbox') el.checked = conf[k] === 'true';
                 else el.value = conf[k] || "";
             }
