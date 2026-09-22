@@ -34,7 +34,7 @@ class AppRepository(context: Context) {
         val liveKeys = apps.asSequence().map { it.key }.toSet()
         AppRoutingCache(
             apps = apps,
-            mode = RoutingMode.fromRaw(cachePrefs.getString(KEY_CACHE_MODE, "whitelist")),
+            mode = RoutingMode.fromRaw(cachePrefs.getString(KEY_CACHE_MODE, "core")),
             selected = decodeSelected(cachePrefs.getString(KEY_CACHE_SELECTED, ""))
                 .filterTo(linkedSetOf()) { it in liveKeys }
         )

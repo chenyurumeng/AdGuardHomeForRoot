@@ -70,6 +70,13 @@ class BoxViewModel(
         val snapshot = _configState.value
         if (!snapshot.loaded || !snapshot.dirty || snapshot.applying) return
 
+        val validationError = boxSettingsRepository.validate(snapshot.pending)
+        if (validationError != null) {
+            _configState.value = snapshot.copy(error = validationError)
+            _messages.tryEmit("配置组合无效")
+            return
+        }
+
         _configState.value = snapshot.copy(applying = true, error = "")
         viewModelScope.launch {
             val result = boxSettingsRepository.apply(
@@ -91,7 +98,11 @@ class BoxViewModel(
                 statusRepository.refresh()
                 _configState.value = _configState.value.copy(
                     applying = false,
-                    error = "应用失败（exit=" + result.exitCode + "），已尝试恢复原配置"
+                    error = if (result.stdout.isNotBlank()) {
+                        result.stdout
+                    } else {
+                        "应用失败（exit=" + result.exitCode + "），已尝试恢复原配置"
+                    }
                 )
                 _messages.emit("配置应用失败，已尝试回滚")
             }

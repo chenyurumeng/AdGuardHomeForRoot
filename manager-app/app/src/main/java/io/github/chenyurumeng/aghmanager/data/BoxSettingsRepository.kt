@@ -11,6 +11,19 @@ class BoxSettingsRepository {
         private const val SETTINGS = "/data/adb/box/settings.ini"
         private const val SERVICE = "/data/adb/box/scripts/box.service"
         private const val STATE_DIR = "/data/adb/box/run/state"
+
+        private val REQUIRED_KEYS = setOf(
+            "proxy_mode",
+            "network_mode",
+            "dns_hijack_mode",
+            "ipv6",
+            "proxy_tcp",
+            "proxy_udp",
+            "dns_hijack_tcp",
+            "dns_hijack_udp",
+            "quic",
+            "mihomo_dns_forward"
+        )
     }
 
     suspend fun load(): Result<BoxConfig> {
@@ -31,6 +44,15 @@ class BoxSettingsRepository {
             }
         }
 
+        val missing = REQUIRED_KEYS - values.keys
+        if (missing.isNotEmpty()) {
+            return Result.failure(
+                IllegalStateException(
+                    "Box 配置缺少受管字段: " + missing.sorted().joinToString()
+                )
+            )
+        }
+
         return Result.success(
             BoxConfig(
                 proxyMode = RoutingMode.fromRaw(values["proxy_mode"]),
@@ -47,11 +69,33 @@ class BoxSettingsRepository {
         )
     }
 
+    fun validate(config: BoxConfig): String? {
+        val appScopedDns =
+            config.dnsHijackMode == DnsHijackMode.REDIRECT_APPS ||
+                config.dnsHijackMode == DnsHijackMode.SPLIT_APPS
+
+        if (appScopedDns && config.networkMode == NetworkMode.TUN) {
+            return config.dnsHijackMode.label +
+                " 当前不支持 TUN 网络模式；请改为 TPROXY、Redirect、Mixed 或 Enhance。"
+        }
+
+        if (appScopedDns && config.proxyMode == RoutingMode.CORE) {
+            return config.dnsHijackMode.label +
+                " 需要 Whitelist 或 Blacklist 代理模式，不能与 Core 组合。"
+        }
+
+        return null
+    }
+
     suspend fun apply(
         current: BoxConfig,
         pending: BoxConfig,
         boxRunning: Boolean
     ): ShellResult {
+        validate(pending)?.let {
+            return ShellResult(40, it, false)
+        }
+
         val changed = current.changedKeys(pending)
         if (changed.isEmpty()) {
             return ShellResult(0, "", false)
@@ -73,8 +117,9 @@ class BoxSettingsRepository {
         }
 
         val edits = replacements.entries.joinToString("; ") { (key, value) ->
-            "grep -q '^" + key + "=' \"\$tmp\" && sed -i 's#^" + key +
-                "=.*#" + key + "=\\\"" + value + "\\\"#' \"\$tmp\""
+            "grep -q '^" + key + "=' \"\$tmp\" || { rm -f \"\$tmp\" \"\$backup\"; exit 35; }; " +
+                "sed -i 's#^" + key + "=.*#" + key + "=\\\"" + value + "\\\"#' \"\$tmp\" " +
+                "|| { rm -f \"\$tmp\" \"\$backup\"; exit 36; }"
         }
 
         val applyAction = when (strategy) {
@@ -97,10 +142,13 @@ class BoxSettingsRepository {
             append(STATE_DIR)
             append("; mkdir -p \"")
             append(sh)
-            append("state_dir\"; ")
+            append("state_dir\" || exit 30; ")
             append("backup=\"")
             append(sh)
-            append("state_dir/settings.ini.manager.bak\"; ")
+            append("state_dir/settings.ini.manager.")
+            append(sh)
+            append(sh)
+            append(".bak\"; ")
             append("tmp=\"")
             append(sh)
             append("state_dir/settings.ini.manager.")
@@ -116,18 +164,26 @@ class BoxSettingsRepository {
             append(sh)
             append("settings\" \"")
             append(sh)
-            append("tmp\" || exit 32; ")
+            append("tmp\" || { rm -f \"")
+            append(sh)
+            append("backup\"; exit 32; }; ")
             append(edits)
             append("; sh -n \"")
             append(sh)
             append("tmp\" || { rm -f \"")
             append(sh)
-            append("tmp\"; exit 33; }; ")
+            append("tmp\" \"")
+            append(sh)
+            append("backup\"; exit 33; }; ")
             append("mv \"")
             append(sh)
             append("tmp\" \"")
             append(sh)
-            append("settings\" || exit 34; ")
+            append("settings\" || { rm -f \"")
+            append(sh)
+            append("tmp\" \"")
+            append(sh)
+            append("backup\"; exit 34; }; ")
             append("if ")
             append(applyAction)
             append("; then rm -f \"")
