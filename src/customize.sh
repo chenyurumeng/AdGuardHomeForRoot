@@ -115,8 +115,8 @@ else
   extract_all
 fi
 
-# Normalize dual-stack DNS settings for preserved dual-instance configs.
-# AGH bootstrap_dns is plain DNS only; keep both IPv4 and IPv6 bootstrap paths.
+# Normalize preserved dual-instance configs. Domestic keeps dual-stack bootstrap;
+# Foreign is pinned to local Mihomo :1053 with no direct bootstrap/fallback path.
 migrate_dualstack_dns_config() {
   local cfg="$1"
   local profile="$2"
