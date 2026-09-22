@@ -30,10 +30,13 @@ class AppRepository(context: Context) {
     private val cachePrefs = appContext.getSharedPreferences(CACHE_PREFS, Context.MODE_PRIVATE)
 
     suspend fun loadCache(): AppRoutingCache = withContext(Dispatchers.Default) {
+        val apps = readCachedApps()
+        val liveKeys = apps.asSequence().map { it.key }.toSet()
         AppRoutingCache(
-            apps = readCachedApps(),
+            apps = apps,
             mode = RoutingMode.fromRaw(cachePrefs.getString(KEY_CACHE_MODE, "whitelist")),
             selected = decodeSelected(cachePrefs.getString(KEY_CACHE_SELECTED, ""))
+                .filterTo(linkedSetOf()) { it in liveKeys }
         )
     }
 
@@ -49,7 +52,9 @@ class AppRepository(context: Context) {
         val parsed = parseState(result.stdout)
         val cached = readCachedApps()
         val merge = mergeApps(cached, parsed)
-        persistCache(merge.apps, parsed.mode, parsed.selected)
+        val liveKeys = merge.apps.asSequence().map { it.key }.toSet()
+        val cacheSelected = parsed.selected.filterTo(linkedSetOf()) { it in liveKeys }
+        persistCache(merge.apps, parsed.mode, cacheSelected)
 
         AppSyncResult(
             ok = true,
@@ -66,8 +71,9 @@ class AppRepository(context: Context) {
         selected: Set<String>,
         apps: List<AppEntry>
     ): ShellResult = withContext(Dispatchers.IO) {
+        val liveKeys = apps.asSequence().map { it.key }.toSet()
         val validEntries = selected
-            .filter { it.matches(Regex("[0-9]+:[A-Za-z0-9._]+")) }
+            .filter { it in liveKeys && it.matches(Regex("[0-9]+:[A-Za-z0-9._]+")) }
             .sorted()
 
         val body = buildString {

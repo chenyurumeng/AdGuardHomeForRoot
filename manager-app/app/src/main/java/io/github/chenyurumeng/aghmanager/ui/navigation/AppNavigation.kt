@@ -87,7 +87,7 @@ fun AppNavigation(
                             Text(current.label)
                             if (currentRoute == "home") {
                                 Text(
-                                    "Box & AGH Manager · v0.5.0-compose-alpha3",
+                                    "Box & AGH Manager · v0.5.0-rc1",
                                     style = androidx.compose.material3.MaterialTheme.typography.labelSmall
                                 )
                             }

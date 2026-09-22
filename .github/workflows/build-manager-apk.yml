@@ -48,16 +48,16 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Build debug APK
+      - name: Lint and build debug APK
         working-directory: manager-app
-        run: gradle --no-daemon :app:assembleDebug
+        run: gradle --no-daemon :app:lintDebug :app:assembleDebug
       - name: Rename APK
         run: |
           mkdir -p out
-          cp manager-app/app/build/outputs/apk/debug/app-debug.apk out/Box-AGH-Manager-v0.5.0-compose-alpha3-debug.apk
+          cp manager-app/app/build/outputs/apk/debug/app-debug.apk out/Box-AGH-Manager-v0.5.0-rc1-debug.apk
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Box-AGH-Manager-v0.5.0-compose-alpha3
-          path: out/Box-AGH-Manager-v0.5.0-compose-alpha3-debug.apk
+          name: Box-AGH-Manager-v0.5.0-rc1
+          path: out/Box-AGH-Manager-v0.5.0-rc1-debug.apk
           if-no-files-found: error

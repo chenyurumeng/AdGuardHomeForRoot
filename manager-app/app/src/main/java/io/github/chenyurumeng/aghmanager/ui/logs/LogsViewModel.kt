@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.chenyurumeng.aghmanager.data.LogRepository
 import io.github.chenyurumeng.aghmanager.model.LogSource
 import io.github.chenyurumeng.aghmanager.model.LogUiState
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -19,21 +20,35 @@ class LogsViewModel(private val repository: LogRepository) : ViewModel() {
     private val _copyEvents = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val copyEvents = _copyEvents.asSharedFlow()
 
-    init { refresh() }
+    private var loadJob: Job? = null
+
+    init {
+        load(_state.value.source)
+    }
 
     fun select(source: LogSource) {
         if (_state.value.source == source) return
         _state.value = _state.value.copy(source = source)
-        refresh()
+        load(source)
     }
 
     fun refresh() {
-        if (_state.value.loading) return
-        val source = _state.value.source
-        _state.value = _state.value.copy(loading = true, content = "正在读取日志…", error = false)
+        load(_state.value.source)
+    }
 
-        viewModelScope.launch {
+    private fun load(source: LogSource) {
+        loadJob?.cancel()
+        _state.value = _state.value.copy(
+            source = source,
+            loading = true,
+            content = "正在读取日志…",
+            error = false
+        )
+
+        loadJob = viewModelScope.launch {
             val result = repository.load(source)
+            if (_state.value.source != source) return@launch
+
             _state.value = _state.value.copy(
                 loading = false,
                 content = when {

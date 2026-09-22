@@ -87,7 +87,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, contentPadding: PaddingValues) 
         }
 
         item { SectionHeader("关于") }
-        item { InfoRow("版本", "0.5.0-compose-alpha3") }
+        item { InfoRow("版本", "0.5.0-rc1") }
         item { HorizontalDivider() }
         item { InfoRow("Box 后端", StatusRepository.BOX_SERVICE) }
         item { HorizontalDivider() }

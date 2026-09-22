@@ -142,19 +142,34 @@ class AppRoutingViewModel(
 
         val current = _state.value
         val keepPending = current.dirty
-        val delta = if (result.added == 0 && result.removed == 0) {
-            "无应用变化"
-        } else {
-            "新增 " + result.added + " · 删除 " + result.removed
+        val liveKeys = result.apps.asSequence().map { it.key }.toSet()
+        val backendSelected = result.selected
+        val cleanedBackendSelected = backendSelected.filterTo(linkedSetOf()) { it in liveKeys }
+        val cleanedPendingSelected = current.selected.filterTo(linkedSetOf()) { it in liveKeys }
+        val staleCount = backendSelected.size - cleanedBackendSelected.size
+
+        val delta = buildString {
+            if (result.added == 0 && result.removed == 0) {
+                append("无应用变化")
+            } else {
+                append("新增 ")
+                append(result.added)
+                append(" · 删除 ")
+                append(result.removed)
+            }
+            if (staleCount > 0) {
+                append(" · 待清理失效选项 ")
+                append(staleCount)
+            }
         }
 
         updateState(
             current.copy(
                 apps = result.apps,
                 appliedMode = result.mode,
-                appliedSelected = result.selected,
+                appliedSelected = backendSelected,
                 mode = if (keepPending) current.mode else result.mode,
-                selected = if (keepPending) current.selected else result.selected,
+                selected = if (keepPending) cleanedPendingSelected else cleanedBackendSelected,
                 syncing = false,
                 statusText = "缓存已同步 · " + result.apps.size + " 个应用 · " + delta,
                 statusIsError = false
