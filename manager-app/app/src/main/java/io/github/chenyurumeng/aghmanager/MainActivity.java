@@ -1,7 +1,6 @@
 package io.github.chenyurumeng.aghmanager;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -17,6 +16,7 @@ import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.FrameLayout;
+import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -26,7 +26,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
-    private static final String TOOL = "/data/adb/agh/scripts/tool.sh";
+    private static final String AGH_TOOL = "/data/adb/agh/scripts/tool.sh";
+    private static final String BOX_SERVICE = "/data/adb/box/scripts/box.service";
+    private static final String BOX_SETTINGS = "/data/adb/box/settings.ini";
+    private static final String BOX_STOP_GUARD = "/data/adb/box/run/state/user_stopped";
+
     private static final String PREFS = "agh_manager";
     private static final String KEY_REFRESH_MS = "refresh_ms";
 
@@ -40,6 +44,7 @@ public class MainActivity extends Activity {
     private static final int GREEN = Color.rgb(57, 217, 138);
     private static final int ORANGE = Color.rgb(255, 176, 32);
     private static final int RED = Color.rgb(255, 92, 92);
+    private static final int PURPLE = Color.rgb(182, 130, 255);
 
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -47,13 +52,14 @@ public class MainActivity extends Activity {
     private SharedPreferences prefs;
     private FrameLayout content;
     private LinearLayout bottomNav;
+    private TextView logOutput;
+
     private boolean destroyed;
     private boolean refreshing;
     private boolean actionBusy;
     private int currentPage = 0;
-    private long refreshMs = 5000;
     private int logKind = 0;
-    private TextView logOutput;
+    private long refreshMs = 5000;
 
     private StatusSnapshot snapshot = StatusSnapshot.checking();
 
@@ -62,6 +68,7 @@ public class MainActivity extends Activity {
         super.onCreate(state);
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
+
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
         refreshMs = prefs.getLong(KEY_REFRESH_MS, 5000);
 
@@ -82,26 +89,25 @@ public class MainActivity extends Activity {
 
         bottomNav = new LinearLayout(this);
         bottomNav.setOrientation(LinearLayout.HORIZONTAL);
-        bottomNav.setPadding(dp(8), dp(6), dp(8), dp(8));
+        bottomNav.setPadding(dp(6), dp(6), dp(6), dp(8));
         bottomNav.setBackgroundColor(SURFACE);
         root.addView(bottomNav, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(68)));
 
-        String[] labels = {"首页", "控制", "日志", "设置"};
+        String[] labels = {"首页", "Box", "AGH", "日志", "设置"};
         for (int i = 0; i < labels.length; i++) {
             final int page = i;
-            TextView item = text(labels[i], 13, i == 0);
+            TextView item = text(labels[i], 12, i == 0);
             item.setGravity(Gravity.CENTER);
             item.setTextColor(i == 0 ? BLUE : MUTED);
-            item.setTag(i);
             item.setOnClickListener(v -> {
                 currentPage = page;
                 updateNav();
                 renderPage();
-                if (currentPage == 2) loadLogs();
+                if (currentPage == 3) loadLogs();
             });
-            bottomNav.addView(item, new LinearLayout.LayoutParams(0,
-                    LinearLayout.LayoutParams.MATCH_PARENT, 1));
+            bottomNav.addView(item, new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.MATCH_PARENT, 1));
         }
         return root;
     }
@@ -120,16 +126,20 @@ public class MainActivity extends Activity {
         content.removeAllViews();
         switch (currentPage) {
             case 1:
-                content.addView(buildControlPage());
+                content.addView(buildBoxPage());
                 break;
             case 2:
-                content.addView(buildLogsPage());
+                content.addView(buildAghPage());
                 break;
             case 3:
+                content.addView(buildLogsPage());
+                break;
+            case 4:
                 content.addView(buildSettingsPage());
                 break;
             default:
                 content.addView(buildHomePage());
+                break;
         }
     }
 
@@ -137,87 +147,286 @@ public class MainActivity extends Activity {
         ScrollView scroll = pageScroll();
         LinearLayout root = pageColumn(scroll);
 
-        LinearLayout header = new LinearLayout(this);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout header = rowLayout();
         LinearLayout titleBox = column();
-        titleBox.addView(text("AGH Manager", 28, true));
-        TextView sub = text("AdGuardHomeForRoot · Box Dual DNS", 13, false);
+        titleBox.addView(text("Box & AGH Manager", 27, true));
+        TextView sub = text("Mihomo · Dual AdGuard Home · DNS Routing", 12, false);
         sub.setTextColor(MUTED);
         titleBox.addView(sub);
-        header.addView(titleBox, new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        header.addView(titleBox, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
 
         TextView refresh = smallButton("刷新", BLUE);
         refresh.setOnClickListener(v -> refreshStatus());
-        header.addView(refresh);
+        header.addView(refresh, new LinearLayout.LayoutParams(dp(72), dp(42)));
         root.addView(header);
 
-        LinearLayout healthRow = new LinearLayout(this);
-        healthRow.setOrientation(LinearLayout.HORIZONTAL);
-        healthRow.setPadding(0, dp(16), 0, dp(4));
-        healthRow.addView(chip(snapshot.rootOk ? "ROOT OK" : "ROOT ?", snapshot.rootOk ? GREEN : RED));
-        healthRow.addView(chip(snapshot.moduleReady ? "MODULE READY" : "MODULE ?", snapshot.moduleReady ? GREEN : ORANGE));
-        root.addView(healthRow);
+        LinearLayout chips = new LinearLayout(this);
+        chips.setOrientation(LinearLayout.HORIZONTAL);
+        chips.setPadding(0, dp(16), 0, dp(4));
+        chips.addView(chip(snapshot.rootOk ? "ROOT OK" : "ROOT ?", snapshot.rootOk ? GREEN : RED));
+        chips.addView(chip(snapshot.boxModuleReady ? "BOX READY" : "BOX ?", snapshot.boxModuleReady ? GREEN : ORANGE));
+        chips.addView(chip(snapshot.aghModuleReady ? "AGH READY" : "AGH ?", snapshot.aghModuleReady ? GREEN : ORANGE));
+        root.addView(chips);
 
+        root.addView(buildHealthCard());
+        root.addView(buildBoxSummaryCard());
+        root.addView(buildAghSummaryCard());
         root.addView(buildRoutingCard());
-        root.addView(buildInstanceCard(true));
-        root.addView(buildInstanceCard(false));
 
-        TextView title = sectionTitle("快捷操作");
-        root.addView(title);
+        root.addView(sectionTitle("整套系统"));
         root.addView(actionRow(
-                actionButton("全部启动", "start", GREEN),
-                actionButton("全部重启", "restart", BLUE),
-                actionButton("全部停止", "stop", RED)
+                systemButton("全套启动", "start", GREEN),
+                systemButton("全套重启", "restart", BLUE),
+                systemButton("全套停止", "stop", RED)
         ));
 
-        TextView hint = text("状态每 " + refreshLabel(refreshMs) + " 自动刷新。所有 DNS 路由仍由 Box/AGH 模块负责。", 12, false);
+        TextView hint = text(
+                "停止顺序固定为 Box → AGH；启动顺序固定为 AGH → Box。这样会保留 Box 的 user_stopped 防竞态保护。",
+                12, false);
         hint.setTextColor(MUTED);
-        hint.setPadding(dp(4), dp(18), dp(4), dp(12));
+        hint.setPadding(dp(4), dp(16), dp(4), dp(10));
         root.addView(hint);
         return scroll;
+    }
+
+    private View buildHealthCard() {
+        LinearLayout card = card();
+        LinearLayout top = rowLayout();
+
+        LinearLayout left = column();
+        left.addView(text("系统健康", 18, true));
+        TextView detail = text(healthDetail(), 12, false);
+        detail.setTextColor(MUTED);
+        left.addView(detail);
+        top.addView(left, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+
+        top.addView(chip(healthLabel(), healthColor()));
+        card.addView(top);
+
+        LinearLayout stateRow = new LinearLayout(this);
+        stateRow.setOrientation(LinearLayout.HORIZONTAL);
+        stateRow.setPadding(0, dp(14), 0, 0);
+        stateRow.addView(routeCell("Box", snapshot.boxUp ? "UP" : "DOWN",
+                snapshot.boxUp ? GREEN : RED), weight());
+        stateRow.addView(routeCell("Domestic", snapshot.domesticUp ? "5591" : "DOWN",
+                snapshot.domesticUp ? GREEN : RED), weight());
+        stateRow.addView(routeCell("Foreign", snapshot.foreignUp ? "5592" : "DOWN",
+                snapshot.foreignUp ? GREEN : ORANGE), weight());
+        stateRow.addView(routeCell("Fallback", snapshot.port1053Up ? "1053" : "DOWN",
+                snapshot.port1053Up ? GREEN : ORANGE), weight());
+        card.addView(stateRow);
+        return card;
+    }
+
+    private View buildBoxSummaryCard() {
+        LinearLayout card = card();
+        LinearLayout top = rowLayout();
+
+        LinearLayout title = column();
+        title.addView(text("Box / " + safe(snapshot.boxBin, "core"), 19, true));
+        String meta = "PID " + safe(snapshot.boxPid, "-")
+                + " · " + safe(snapshot.proxyMode, "?")
+                + " · " + safe(snapshot.networkMode, "?")
+                + " · DNS " + safe(snapshot.dnsHijackMode, "?");
+        TextView m = text(meta, 12, false);
+        m.setTextColor(MUTED);
+        title.addView(m);
+        top.addView(title, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        top.addView(chip(snapshot.boxUp ? "RUNNING" : "STOPPED",
+                snapshot.boxUp ? GREEN : RED));
+        card.addView(top);
+
+        if (!TextUtils.isEmpty(snapshot.boxVersion)) {
+            TextView version = text(snapshot.boxVersion, 11, false);
+            version.setTextColor(MUTED);
+            version.setPadding(0, dp(8), 0, 0);
+            card.addView(version);
+        }
+
+        LinearLayout actions = actionRow(
+                boxButton("重启 Box", "restart", BLUE),
+                webButton("Mihomo Dashboard", "Mihomo Dashboard", snapshot.dashboardUrl())
+        );
+        actions.setPadding(0, dp(12), 0, 0);
+        card.addView(actions);
+        return card;
+    }
+
+    private View buildAghSummaryCard() {
+        LinearLayout card = card();
+        LinearLayout titleRow = rowLayout();
+        titleRow.addView(text("AdGuard Home", 19, true), new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+
+        boolean allUp = snapshot.domesticUp && snapshot.foreignUp;
+        titleRow.addView(chip(allUp ? "DUAL UP" : "DEGRADED", allUp ? GREEN : ORANGE));
+        card.addView(titleRow);
+
+        card.addView(instanceMiniRow("Domestic", "5591 / 3000", snapshot.domesticUp, snapshot.domesticPid));
+        card.addView(instanceMiniRow("Foreign", "5592 / 3001", snapshot.foreignUp, snapshot.foreignPid));
+
+        LinearLayout actions = actionRow(
+                webButton("Domestic", "Domestic AGH", "http://127.0.0.1:3000"),
+                webButton("Foreign", "Foreign AGH", "http://127.0.0.1:3001")
+        );
+        actions.setPadding(0, dp(10), 0, 0);
+        card.addView(actions);
+        return card;
+    }
+
+    private View instanceMiniRow(String name, String ports, boolean up, String pid) {
+        LinearLayout row = rowLayout();
+        row.setPadding(0, dp(10), 0, 0);
+
+        TextView dot = text("●", 15, true);
+        dot.setTextColor(up ? GREEN : RED);
+        row.addView(dot, new LinearLayout.LayoutParams(dp(26),
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        LinearLayout body = column();
+        body.addView(text(name, 14, true));
+        TextView p = text(ports + (TextUtils.isEmpty(pid) ? "" : " · PID " + pid), 11, false);
+        p.setTextColor(MUTED);
+        body.addView(p);
+        row.addView(body, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        return row;
     }
 
     private View buildRoutingCard() {
         LinearLayout card = card();
         LinearLayout top = rowLayout();
+
         LinearLayout title = column();
-        title.addView(text("DNS 路由", 18, true));
-        TextView mode = text(snapshot.boxMode.isEmpty() ? "Box mode: checking…" : "Box mode: " + snapshot.boxMode, 12, false);
+        title.addView(text("DNS Routing", 18, true));
+        TextView mode = text(
+                "split: " + safe(snapshot.dnsHijackMode, "?")
+                        + " · IPv6 " + safe(snapshot.ipv6, "?"),
+                12, false);
         mode.setTextColor(MUTED);
         title.addView(mode);
-        top.addView(title, new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        TextView badge = chip(snapshot.boxMode.contains("split-apps") ? "SPLIT APPS" : "BOX", BLUE);
-        top.addView(badge);
+        top.addView(title, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        top.addView(chip(snapshot.userStopped ? "USER STOPPED" : "ACTIVE",
+                snapshot.userStopped ? ORANGE : BLUE));
         card.addView(top);
 
-        LinearLayout routes = new LinearLayout(this);
-        routes.setOrientation(LinearLayout.HORIZONTAL);
-        routes.setPadding(0, dp(14), 0, 0);
-        routes.addView(routeCell("Domestic", "5591", snapshot.port5591Up ? GREEN : RED), weight());
-        routes.addView(routeCell("Foreign", "5592", snapshot.port5592Up ? GREEN : RED), weight());
-        routes.addView(routeCell("Fallback", "1053", snapshot.port1053Up ? GREEN : ORANGE), weight());
-        card.addView(routes);
+        card.addView(routeTextRow("普通应用", ordinaryDnsTarget()));
+        card.addView(routeTextRow("白名单应用", whitelistDnsTarget()));
+
+        LinearLayout listeners = new LinearLayout(this);
+        listeners.setOrientation(LinearLayout.HORIZONTAL);
+        listeners.setPadding(0, dp(12), 0, 0);
+        listeners.addView(routeCell("5591", snapshot.port5591Up ? "LISTEN" : "DOWN",
+                snapshot.port5591Up ? GREEN : RED), weight());
+        listeners.addView(routeCell("5592", snapshot.port5592Up ? "LISTEN" : "DOWN",
+                snapshot.port5592Up ? GREEN : RED), weight());
+        listeners.addView(routeCell("1053", snapshot.port1053Up ? "LISTEN" : "DOWN",
+                snapshot.port1053Up ? GREEN : ORANGE), weight());
+        listeners.addView(routeCell("9090", snapshot.port9090Up ? "API" : "DOWN",
+                snapshot.port9090Up ? GREEN : ORANGE), weight());
+        card.addView(listeners);
         return card;
     }
 
-    private View routeCell(String label, String port, int color) {
-        LinearLayout box = column();
-        box.setGravity(Gravity.CENTER);
-        TextView dot = text("●", 18, true);
-        dot.setTextColor(color);
-        box.addView(dot);
-        TextView p = text(":" + port, 18, true);
-        box.addView(p);
-        TextView l = text(label, 11, false);
-        l.setTextColor(MUTED);
-        box.addView(l);
-        return box;
+    private View routeTextRow(String label, String target) {
+        LinearLayout row = rowLayout();
+        row.setPadding(0, dp(10), 0, 0);
+        TextView key = text(label, 13, false);
+        key.setTextColor(MUTED);
+        row.addView(key, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.38f));
+        TextView value = text("→ " + target, 13, true);
+        value.setGravity(Gravity.END);
+        row.addView(value, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.62f));
+        return row;
     }
 
-    private View buildInstanceCard(boolean domestic) {
+    private View buildBoxPage() {
+        ScrollView scroll = pageScroll();
+        LinearLayout root = pageColumn(scroll);
+        root.addView(pageTitle("Box / Mihomo", "安全控制通过 " + BOX_SERVICE));
+
+        LinearLayout status = card();
+        LinearLayout top = rowLayout();
+        LinearLayout name = column();
+        name.addView(text("Box Service", 20, true));
+        TextView version = text(TextUtils.isEmpty(snapshot.boxVersion)
+                ? safe(snapshot.boxBin, "core")
+                : snapshot.boxVersion, 11, false);
+        version.setTextColor(MUTED);
+        name.addView(version);
+        top.addView(name, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        top.addView(chip(snapshot.boxUp ? "RUNNING" : "STOPPED",
+                snapshot.boxUp ? GREEN : RED));
+        status.addView(top);
+
+        status.addView(infoRow("Core", safe(snapshot.boxBin, "-")));
+        status.addView(infoRow("PID", safe(snapshot.boxPid, "-")));
+        status.addView(infoRow("Proxy Mode", safe(snapshot.proxyMode, "-")));
+        status.addView(infoRow("Network Mode", safe(snapshot.networkMode, "-")));
+        status.addView(infoRow("DNS Hijack", safe(snapshot.dnsHijackMode, "-")));
+        status.addView(infoRow("IPv6", safe(snapshot.ipv6, "-")));
+        status.addView(infoRow("Mihomo DNS", snapshot.port1053Up ? ":1053 listening" : ":1053 down"));
+        status.addView(infoRow("Controller", safe(snapshot.boxController, "127.0.0.1:9090")));
+        status.addView(infoRow("Stop Guard", snapshot.userStopped ? "present" : "clear"));
+        root.addView(status);
+
+        root.addView(sectionTitle("Box 控制"));
+        LinearLayout controls = card();
+        controls.addView(actionRow(
+                boxButton("启动", "start", GREEN),
+                boxButton("重启", "restart", BLUE),
+                boxButton("停止", "stop", RED)
+        ));
+        TextView safety = text(
+                "App 不直接执行 box.iptables enable/disable。stop/restart 完全交给 box.service，以保留 user_stopped 防竞态。",
+                12, false);
+        safety.setTextColor(MUTED);
+        safety.setPadding(dp(2), dp(12), dp(2), 0);
+        controls.addView(safety);
+        root.addView(controls);
+
+        root.addView(sectionTitle("Mihomo"));
+        LinearLayout dashboard = card();
+        dashboard.addView(infoRow("API", snapshot.dashboardUrl()));
+        TextView open = largeButton("打开 Mihomo Dashboard", BLUE);
+        open.setOnClickListener(v -> openWeb("Mihomo Dashboard", snapshot.dashboardUrl()));
+        LinearLayout.LayoutParams op = matchWrap();
+        op.setMargins(0, dp(12), 0, 0);
+        dashboard.addView(open, op);
+        root.addView(dashboard);
+        return scroll;
+    }
+
+    private View buildAghPage() {
+        ScrollView scroll = pageScroll();
+        LinearLayout root = pageColumn(scroll);
+        root.addView(pageTitle("AdGuard Home", "Dual DNS · Domestic / Foreign"));
+
+        root.addView(sectionTitle("全部实例"));
+        LinearLayout all = card();
+        all.addView(actionRow(
+                aghButton("启动", "start", GREEN),
+                aghButton("重启", "restart", BLUE),
+                aghButton("停止", "stop", RED)
+        ));
+        root.addView(all);
+
+        root.addView(sectionTitle("Domestic"));
+        root.addView(aghInstanceCard(true));
+
+        root.addView(sectionTitle("Foreign"));
+        root.addView(aghInstanceCard(false));
+        return scroll;
+    }
+
+    private View aghInstanceCard(boolean domestic) {
         String name = domestic ? "Domestic" : "Foreign";
         String dns = domestic ? "5591" : "5592";
         String web = domestic ? "3000" : "3001";
@@ -226,115 +435,73 @@ public class MainActivity extends Activity {
 
         LinearLayout card = card();
         LinearLayout top = rowLayout();
-
-        LinearLayout nameBox = column();
-        TextView nameText = text(name, 20, true);
-        nameBox.addView(nameText);
-        TextView ports = text("DNS :" + dns + "   ·   Web :" + web + (pid.isEmpty() ? "" : "   ·   PID " + pid), 12, false);
-        ports.setTextColor(MUTED);
-        nameBox.addView(ports);
-        top.addView(nameBox, new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-
-        TextView state = chip(up ? "RUNNING" : "STOPPED", up ? GREEN : RED);
-        top.addView(state);
+        LinearLayout title = column();
+        title.addView(text(name, 19, true));
+        TextView info = text("DNS :" + dns + " · Web :" + web
+                + (TextUtils.isEmpty(pid) ? "" : " · PID " + pid), 12, false);
+        info.setTextColor(MUTED);
+        title.addView(info);
+        top.addView(title, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        top.addView(chip(up ? "RUNNING" : "STOPPED", up ? GREEN : RED));
         card.addView(top);
 
-        LinearLayout actions = actionRow(
-                outlineButton("重启", domestic ? "restart-domestic" : "restart-foreign"),
-                webButton("管理界面", name + " AGH", "http://127.0.0.1:" + web)
-        );
-        actions.setPadding(0, dp(14), 0, 0);
-        card.addView(actions);
-        return card;
-    }
-
-    private View buildControlPage() {
-        ScrollView scroll = pageScroll();
-        LinearLayout root = pageColumn(scroll);
-
-        root.addView(pageTitle("服务控制", "所有操作都委托给 /data/adb/agh/scripts/tool.sh"));
-
-        root.addView(sectionTitle("全部实例"));
-        LinearLayout allCard = card();
-        allCard.addView(actionRow(
-                actionButton("启动", "start", GREEN),
-                actionButton("重启", "restart", BLUE),
-                actionButton("停止", "stop", RED)
-        ));
-        root.addView(allCard);
-
-        root.addView(sectionTitle("Domestic"));
-        root.addView(controlInstanceCard(true));
-
-        root.addView(sectionTitle("Foreign"));
-        root.addView(controlInstanceCard(false));
-
-        root.addView(sectionTitle("快速恢复"));
-        LinearLayout rescue = card();
-        TextView note = text("如果 AGH 实例异常，可先全部停止，再全部启动。Box 会根据监听状态自动更新 DNS 回退。", 13, false);
-        note.setTextColor(MUTED);
-        rescue.addView(note);
-        TextView restart = largeButton("全部重启 AGH", BLUE);
-        restart.setOnClickListener(v -> runAction("全部重启", "restart"));
-        LinearLayout.LayoutParams rp = matchWrap();
-        rp.setMargins(0, dp(14), 0, 0);
-        rescue.addView(restart, rp);
-        root.addView(rescue);
-        return scroll;
-    }
-
-    private View controlInstanceCard(boolean domestic) {
-        boolean up = domestic ? snapshot.domesticUp : snapshot.foreignUp;
-        String name = domestic ? "Domestic" : "Foreign";
-        LinearLayout card = card();
-        LinearLayout status = rowLayout();
-        status.addView(text(name, 18, true), new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        status.addView(chip(up ? "RUNNING" : "STOPPED", up ? GREEN : RED));
-        card.addView(status);
         LinearLayout buttons = actionRow(
-                actionButton("启动", domestic ? "start-domestic" : "start-foreign", GREEN),
-                actionButton("重启", domestic ? "restart-domestic" : "restart-foreign", BLUE),
-                actionButton("停止", domestic ? "stop-domestic" : "stop-foreign", RED)
+                aghButton("启动", domestic ? "start-domestic" : "start-foreign", GREEN),
+                aghButton("重启", domestic ? "restart-domestic" : "restart-foreign", BLUE),
+                aghButton("停止", domestic ? "stop-domestic" : "stop-foreign", RED)
         );
         buttons.setPadding(0, dp(12), 0, 0);
         card.addView(buttons);
+
+        TextView webButton = largeButton("打开 " + name + " 管理界面", PURPLE);
+        webButton.setOnClickListener(v ->
+                openWeb(name + " AGH", "http://127.0.0.1:" + web));
+        LinearLayout.LayoutParams wp = matchWrap();
+        wp.setMargins(0, dp(10), 0, 0);
+        card.addView(webButton, wp);
         return card;
     }
 
     private View buildLogsPage() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(18), dp(18), dp(18), dp(10));
+        root.setPadding(dp(16), dp(18), dp(16), dp(10));
         root.setBackgroundColor(BG);
+        root.addView(pageTitle("日志", "Box + AGH unified logs"));
 
-        root.addView(pageTitle("日志", "Domestic / Foreign / Module"));
-
+        HorizontalScrollView tabScroll = new HorizontalScrollView(this);
+        tabScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout tabs = new LinearLayout(this);
         tabs.setOrientation(LinearLayout.HORIZONTAL);
-        String[] labels = {"Domestic", "Foreign", "Module"};
+
+        String[] labels = {"Box Core", "Box Service", "Box Tool", "Domestic", "Foreign", "AGH Module"};
         for (int i = 0; i < labels.length; i++) {
             final int which = i;
-            TextView tab = smallButton(labels[i], i == logKind ? BLUE : SURFACE_ALT);
-            tab.setTextColor(i == logKind ? Color.WHITE : MUTED);
+            boolean selected = i == logKind;
+            TextView tab = smallButton(labels[i], selected ? BLUE : SURFACE_ALT);
+            tab.setTextColor(selected ? Color.WHITE : MUTED);
             tab.setOnClickListener(v -> {
                 logKind = which;
                 renderPage();
                 loadLogs();
             });
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, dp(44), 1);
+            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
+                    dp(112), dp(42));
             p.setMargins(dp(3), 0, dp(3), dp(8));
             tabs.addView(tab, p);
         }
-        root.addView(tabs);
+        tabScroll.addView(tabs);
+        root.addView(tabScroll);
 
         LinearLayout tools = rowLayout();
         TextView refresh = smallButton("刷新", BLUE);
         refresh.setOnClickListener(v -> loadLogs());
         TextView copy = smallButton("复制", SURFACE_ALT);
-        copy.setOnClickListener(v -> copyText("AGH Logs", logOutput == null ? "" : logOutput.getText().toString()));
-        tools.addView(refresh);
+        copy.setOnClickListener(v -> copyText(
+                "Box & AGH Logs",
+                logOutput == null ? "" : logOutput.getText().toString()));
+        tools.addView(refresh, new LinearLayout.LayoutParams(dp(88), dp(40)));
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(88), dp(40));
         cp.setMargins(dp(8), 0, 0, 0);
         tools.addView(copy, cp);
@@ -349,6 +516,7 @@ public class MainActivity extends Activity {
         logOutput.setPadding(dp(14), dp(14), dp(14), dp(14));
         logOutput.setBackground(rounded(SURFACE, BORDER, 16));
         logScroll.addView(logOutput);
+
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1);
         lp.setMargins(0, dp(12), 0, 0);
@@ -359,11 +527,11 @@ public class MainActivity extends Activity {
     private View buildSettingsPage() {
         ScrollView scroll = pageScroll();
         LinearLayout root = pageColumn(scroll);
-        root.addView(pageTitle("设置", "AGH Manager v0.2.0-rc1"));
+        root.addView(pageTitle("设置", "Box & AGH Manager v0.3.0-rc1"));
 
         root.addView(sectionTitle("自动刷新"));
         LinearLayout refreshCard = card();
-        TextView desc = text("选择状态刷新间隔", 13, false);
+        TextView desc = text("选择整套网络栈状态刷新间隔", 13, false);
         desc.setTextColor(MUTED);
         refreshCard.addView(desc);
 
@@ -379,11 +547,11 @@ public class MainActivity extends Activity {
             option.setOnClickListener(v -> {
                 refreshMs = value;
                 prefs.edit().putLong(KEY_REFRESH_MS, value).apply();
-                main.removeCallbacks(autoRefresh);
                 scheduleNextRefresh();
                 renderPage();
             });
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, dp(44), 1);
+            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
+                    0, dp(44), 1);
             p.setMargins(dp(3), dp(12), dp(3), 0);
             opts.addView(option, p);
         }
@@ -392,10 +560,12 @@ public class MainActivity extends Activity {
 
         root.addView(sectionTitle("诊断"));
         LinearLayout diag = card();
-        TextView diagText = text("生成状态、端口监听和 Box DNS 路由快照，方便直接复制给调试会话。", 13, false);
+        TextView diagText = text(
+                "生成 Box、Mihomo、AGH、监听端口、user_stopped 与 NAT_DNS_HIJACK 的统一快照。",
+                13, false);
         diagText.setTextColor(MUTED);
         diag.addView(diagText);
-        TextView copyReport = largeButton("复制诊断报告", BLUE);
+        TextView copyReport = largeButton("复制完整诊断报告", BLUE);
         copyReport.setOnClickListener(v -> copyDebugReport());
         LinearLayout.LayoutParams dr = matchWrap();
         dr.setMargins(0, dp(14), 0, 0);
@@ -404,88 +574,140 @@ public class MainActivity extends Activity {
 
         root.addView(sectionTitle("关于"));
         LinearLayout about = card();
-        about.addView(infoRow("版本", "0.2.0-rc1"));
-        about.addView(infoRow("控制后端", TOOL));
+        about.addView(infoRow("版本", "0.3.0-rc1"));
+        about.addView(infoRow("Box 后端", BOX_SERVICE));
+        about.addView(infoRow("AGH 后端", AGH_TOOL));
+        about.addView(infoRow("Mihomo Dashboard", snapshot.dashboardUrl()));
         about.addView(infoRow("Domestic", "DNS 5591 / Web 3000"));
         about.addView(infoRow("Foreign", "DNS 5592 / Web 3001"));
         root.addView(about);
         return scroll;
     }
 
-    private View pageTitle(String title, String subtitle) {
-        LinearLayout box = column();
-        TextView t = text(title, 27, true);
-        box.addView(t);
-        TextView s = text(subtitle, 13, false);
-        s.setTextColor(MUTED);
-        s.setPadding(0, dp(2), 0, dp(8));
-        box.addView(s);
-        return box;
-    }
-
-    private View infoRow(String key, String value) {
-        LinearLayout row = rowLayout();
-        row.setPadding(0, dp(8), 0, dp(8));
-        TextView k = text(key, 13, false);
-        k.setTextColor(MUTED);
-        row.addView(k, new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.WRAP_CONTENT, 0.35f));
-        TextView v = text(value, 13, false);
-        v.setGravity(Gravity.END);
-        v.setTextIsSelectable(true);
-        row.addView(v, new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.WRAP_CONTENT, 0.65f));
-        return row;
-    }
-
     private void refreshStatus() {
         if (refreshing || destroyed) return;
         refreshing = true;
+
         io.execute(() -> {
-            RootShell.Result r = RootShell.exec(
-                    "echo '===MODULE==='; " +
-                    "[ -x " + TOOL + " ] && echo READY || echo MISSING; " +
-                    "echo '===STATUS==='; " +
-                    TOOL + " status 2>&1; " +
-                    "echo '===BOX==='; " +
-                    "if [ -f /data/adb/box/settings.ini ]; then " +
-                    "grep -E '^(dns_hijack_mode|domestic_dns_port|foreign_dns_port|foreign_dns_fallback_port|foreign_dns_fail_port)=' /data/adb/box/settings.ini; " +
-                    "else echo 'Box settings missing'; fi; " +
+            String command =
+                    "echo '===MODULES==='; " +
+                    "[ -x " + AGH_TOOL + " ] && echo 'AGH_MODULE=ready' || echo 'AGH_MODULE=missing'; " +
+                    "[ -x " + BOX_SERVICE + " ] && echo 'BOX_MODULE=ready' || echo 'BOX_MODULE=missing'; " +
+
+                    "echo '===AGH_STATUS==='; " +
+                    "if [ -x " + AGH_TOOL + " ]; then " + AGH_TOOL + " status 2>&1; fi; " +
+
+                    "echo '===BOX_SETTINGS==='; " +
+                    "if [ -f " + BOX_SETTINGS + " ]; then " +
+                    "grep -E '^(bin_name|proxy_mode|network_mode|dns_hijack_mode|ipv6|domestic_dns_port|foreign_dns_port|foreign_dns_fallback_port|foreign_dns_fail_port)=' "
+                    + BOX_SETTINGS + " 2>/dev/null || true; fi; " +
+
+                    "echo '===BOX_PROCESS==='; " +
+                    "bin=$(sed -n 's/^bin_name=\"\\([^\"]*\\)\".*/\\1/p' " + BOX_SETTINGS + " 2>/dev/null | head -n1); " +
+                    "[ -n \"$bin\" ] || bin=mihomo; echo \"BOX_BIN=$bin\"; " +
+                    "pid=$(cat /data/adb/box/run/box.pid 2>/dev/null); " +
+                    "if [ -n \"$pid\" ] && kill -0 \"$pid\" 2>/dev/null; then echo 'BOX_STATUS=up'; echo \"BOX_PID=$pid\"; else echo 'BOX_STATUS=down'; fi; " +
+                    "[ -f " + BOX_STOP_GUARD + " ] && echo 'BOX_USER_STOPPED=true' || echo 'BOX_USER_STOPPED=false'; " +
+                    "if [ \"$bin\" = mihomo ] && [ -x /data/adb/box/bin/mihomo ]; then " +
+                    "v=$(/data/adb/box/bin/mihomo -v 2>/dev/null | head -n1); echo \"BOX_VERSION=$v\"; fi; " +
+                    "controller=$(awk '!/^[[:space:]]*#/ && /external-controller:[[:space:]]/ {print $2; exit}' /data/adb/box/mihomo/config.yaml 2>/dev/null | tr -d '\"' ); " +
+                    "[ -n \"$controller\" ] && echo \"BOX_CONTROLLER=$controller\"; " +
+
                     "echo '===PORTS==='; " +
-                    "for p in 5591 5592 1053; do " +
-                    "if ss -lntu 2>/dev/null | grep -qE '[:.]'$p'([[:space:]]|$)'; then echo $p'=up'; else echo $p'=down'; fi; " +
-                    "done"
-            );
-            StatusSnapshot parsed = StatusSnapshot.from(r);
+                    "for p in 5591 5592 1053 9090; do " +
+                    "if ss -lntu 2>/dev/null | grep -qE '[:.]'$p'([[:space:]]|$)'; then echo \"PORT_$p=up\"; else echo \"PORT_$p=down\"; fi; done; " +
+
+                    "echo '===DNS_RULES==='; " +
+                    "iptables -t nat -S NAT_DNS_HIJACK 2>/dev/null || true; " +
+                    "echo '===END==='; true";
+
+            RootShell.Result result = RootShell.exec(command, 45);
+            StatusSnapshot parsed = StatusSnapshot.from(result);
+
             main.post(() -> {
                 refreshing = false;
                 snapshot = parsed;
-                if (currentPage == 0 || currentPage == 1) renderPage();
+                if (currentPage == 0 || currentPage == 1 || currentPage == 2 || currentPage == 4) {
+                    renderPage();
+                }
             });
         });
     }
 
-    private void runAction(String label, String action) {
+    private void runBoxAction(String label, String action) {
+        runRootAction(label, BOX_SERVICE + " " + action, 150);
+    }
+
+    private void runAghAction(String label, String action) {
+        String command = AGH_TOOL + " " + action;
+        if ("restart-domestic".equals(action)) {
+            command = AGH_TOOL + " restart-domestic || { "
+                    + AGH_TOOL + " stop-domestic; "
+                    + AGH_TOOL + " start-domestic; }";
+        } else if ("restart-foreign".equals(action)) {
+            command = AGH_TOOL + " restart-foreign || { "
+                    + AGH_TOOL + " stop-foreign; "
+                    + AGH_TOOL + " start-foreign; }";
+        }
+        runRootAction(label, command, 300);
+    }
+
+    private void runSystemAction(String label, String action) {
+        final String command;
+        final long timeout;
+
+        switch (action) {
+            case "start":
+                command =
+                        "[ -x " + AGH_TOOL + " ] || exit 31; " +
+                        "[ -x " + BOX_SERVICE + " ] || exit 32; " +
+                        AGH_TOOL + " start; agh_rc=$?; " +
+                        "[ $agh_rc -eq 0 ] || exit $agh_rc; " +
+                        BOX_SERVICE + " start";
+                timeout = 360;
+                break;
+            case "stop":
+                command =
+                        "box_rc=0; agh_rc=0; " +
+                        "if [ -x " + BOX_SERVICE + " ]; then " + BOX_SERVICE + " stop || box_rc=$?; fi; " +
+                        "if [ -x " + AGH_TOOL + " ]; then " + AGH_TOOL + " stop || agh_rc=$?; fi; " +
+                        "[ $box_rc -eq 0 ] && [ $agh_rc -eq 0 ]";
+                timeout = 150;
+                break;
+            case "restart":
+                command =
+                        "[ -x " + AGH_TOOL + " ] || exit 31; " +
+                        "[ -x " + BOX_SERVICE + " ] || exit 32; " +
+                        BOX_SERVICE + " stop || exit $?; " +
+                        AGH_TOOL + " restart || exit $?; " +
+                        BOX_SERVICE + " start";
+                timeout = 420;
+                break;
+            default:
+                return;
+        }
+        runRootAction(label, command, timeout);
+    }
+
+    private void runRootAction(String label, String command, long timeoutSeconds) {
         if (actionBusy) {
             Toast.makeText(this, "已有操作正在执行", Toast.LENGTH_SHORT).show();
             return;
         }
+
         actionBusy = true;
         Toast.makeText(this, label + "…", Toast.LENGTH_SHORT).show();
 
         io.execute(() -> {
-            String command = TOOL + " " + action;
-            if ("restart-domestic".equals(action)) {
-                command = TOOL + " restart-domestic || { " + TOOL + " stop-domestic; " + TOOL + " start-domestic; }";
-            } else if ("restart-foreign".equals(action)) {
-                command = TOOL + " restart-foreign || { " + TOOL + " stop-foreign; " + TOOL + " start-foreign; }";
-            }
-            RootShell.Result r = RootShell.exec(command);
+            RootShell.Result result = RootShell.exec(command, timeoutSeconds);
             main.post(() -> {
                 actionBusy = false;
-                Toast.makeText(this,
-                        r.ok() ? label + "完成" : label + "失败\n" + r.output,
-                        Toast.LENGTH_LONG).show();
+                String message = result.ok()
+                        ? label + "完成"
+                        : label + "失败\n" + (TextUtils.isEmpty(result.output)
+                        ? "exit=" + result.code
+                        : result.output);
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show();
                 refreshStatus();
             });
         });
@@ -493,16 +715,39 @@ public class MainActivity extends Activity {
 
     private void loadLogs() {
         if (logOutput != null) logOutput.setText("正在读取日志…");
-        final String path;
-        if (logKind == 1) path = "/data/adb/agh/instances/foreign/agh.log";
-        else if (logKind == 2) path = "/data/adb/agh/history.log";
-        else path = "/data/adb/agh/instances/domestic/agh.log";
+
+        final String command;
+        switch (logKind) {
+            case 0:
+                command = "bin=$(sed -n 's/^bin_name=\"\\([^\"]*\\)\".*/\\1/p' "
+                        + BOX_SETTINGS + " 2>/dev/null | head -n1); "
+                        + "[ -n \"$bin\" ] || bin=mihomo; "
+                        + "tail -n 260 /data/adb/box/run/$bin.log 2>/dev/null";
+                break;
+            case 1:
+                command = "tail -n 260 /data/adb/box/run/runs.log 2>/dev/null";
+                break;
+            case 2:
+                command = "tail -n 260 /data/adb/box/run/tool.log 2>/dev/null";
+                break;
+            case 3:
+                command = "tail -n 260 /data/adb/agh/instances/domestic/agh.log 2>/dev/null";
+                break;
+            case 4:
+                command = "tail -n 260 /data/adb/agh/instances/foreign/agh.log 2>/dev/null";
+                break;
+            default:
+                command = "tail -n 260 /data/adb/agh/history.log 2>/dev/null";
+                break;
+        }
 
         io.execute(() -> {
-            RootShell.Result r = RootShell.exec("tail -n 220 " + path + " 2>/dev/null");
+            RootShell.Result result = RootShell.exec(command, 30);
             main.post(() -> {
                 if (logOutput != null) {
-                    logOutput.setText(TextUtils.isEmpty(r.output) ? "(暂无日志)" : r.output);
+                    logOutput.setText(TextUtils.isEmpty(result.output)
+                            ? "(暂无日志)"
+                            : result.output);
                 }
             });
         });
@@ -510,35 +755,196 @@ public class MainActivity extends Activity {
 
     private void copyDebugReport() {
         Toast.makeText(this, "正在生成诊断报告…", Toast.LENGTH_SHORT).show();
+
         io.execute(() -> {
-            RootShell.Result r = RootShell.exec(
-                    "echo 'AGH Manager v0.2.0-rc1'; " +
-                    "echo '===== AGH STATUS ====='; " + TOOL + " status 2>&1; " +
-                    "echo '===== LISTENERS ====='; ss -lntup 2>/dev/null | grep -E ':5591|:5592|:1053' || true; " +
+            String command =
+                    "echo 'Box & AGH Manager v0.3.0-rc1'; " +
+                    "echo '===== BOX STATUS ====='; " +
+                    BOX_SERVICE + " status 2>&1 || true; " +
+                    "echo '===== BOX STOP GUARD ====='; " +
+                    "[ -f " + BOX_STOP_GUARD + " ] && echo present || echo clear; " +
+                    "echo '===== AGH STATUS ====='; " +
+                    AGH_TOOL + " status 2>&1 || true; " +
+                    "echo '===== LISTENERS ====='; " +
+                    "ss -lntup 2>/dev/null | grep -E ':5591|:5592|:1053|:9090' || true; " +
                     "echo '===== BOX SETTINGS ====='; " +
-                    "grep -E '^(proxy_mode|network_mode|dns_hijack_mode|domestic_dns_port|foreign_dns_port|foreign_dns_fallback_port|foreign_dns_fail_port|ipv6)=' /data/adb/box/settings.ini 2>/dev/null || true; " +
-                    "echo '===== DNS CHAIN ====='; iptables -t nat -nvL NAT_DNS_HIJACK --line-numbers 2>/dev/null || true"
-            );
-            main.post(() -> copyText("AGH Manager 诊断报告", r.output));
+                    "grep -E '^(bin_name|proxy_mode|network_mode|dns_hijack_mode|domestic_dns_port|foreign_dns_port|foreign_dns_fallback_port|foreign_dns_fail_port|ipv6)=' "
+                    + BOX_SETTINGS + " 2>/dev/null || true; " +
+                    "echo '===== NAT_DNS_HIJACK ====='; " +
+                    "iptables -t nat -nvL NAT_DNS_HIJACK --line-numbers 2>/dev/null || true; " +
+                    "echo '===== IPv6 DNS GUARD ====='; " +
+                    "ip6tables -t filter -S OUTPUT 2>/dev/null | grep BOX_DNS6_REJECT || true";
+
+            RootShell.Result result = RootShell.exec(command, 60);
+            main.post(() -> copyText("Box & AGH Manager 诊断报告", result.output));
         });
     }
 
+    private TextView boxButton(String label, String action, int color) {
+        TextView button = actionStyleButton(label, color);
+        button.setOnClickListener(v -> runBoxAction(label, action));
+        return button;
+    }
+
+    private TextView aghButton(String label, String action, int color) {
+        TextView button = actionStyleButton(label, color);
+        button.setOnClickListener(v -> runAghAction(label, action));
+        return button;
+    }
+
+    private TextView systemButton(String label, String action, int color) {
+        TextView button = actionStyleButton(label, color);
+        button.setOnClickListener(v -> runSystemAction(label, action));
+        return button;
+    }
+
+    private TextView actionStyleButton(String label, int color) {
+        TextView button = smallButton(label, withAlpha(color, 34));
+        button.setTextColor(color);
+        button.setBackground(rounded(
+                withAlpha(color, 28),
+                withAlpha(color, 110),
+                14));
+        return button;
+    }
+
+    private TextView webButton(String label, String title, String url) {
+        TextView button = smallButton(label, BLUE);
+        button.setOnClickListener(v -> openWeb(title, url));
+        return button;
+    }
+
+    private String healthLabel() {
+        if (!snapshot.rootOk || !snapshot.boxModuleReady || !snapshot.aghModuleReady) {
+            return "ERROR";
+        }
+        if (snapshot.userStopped || !snapshot.boxUp) {
+            return "STOPPED";
+        }
+        if (snapshot.route65534 || (!snapshot.foreignUp && !snapshot.port1053Up)) {
+            return "FAIL-CLOSED";
+        }
+        if (snapshot.boxUp
+                && snapshot.domesticUp
+                && snapshot.foreignUp
+                && snapshot.port5591Up
+                && snapshot.port5592Up
+                && snapshot.port1053Up) {
+            return "HEALTHY";
+        }
+        return "DEGRADED";
+    }
+
+    private int healthColor() {
+        switch (healthLabel()) {
+            case "HEALTHY":
+                return GREEN;
+            case "DEGRADED":
+                return ORANGE;
+            case "FAIL-CLOSED":
+                return RED;
+            case "STOPPED":
+                return MUTED;
+            default:
+                return RED;
+        }
+    }
+
+    private String healthDetail() {
+        switch (healthLabel()) {
+            case "HEALTHY":
+                return "Box、双 AGH 与 Mihomo DNS 均正常";
+            case "DEGRADED":
+                return "部分组件不可用，当前由回退策略维持服务";
+            case "FAIL-CLOSED":
+                return "Foreign 与 Mihomo DNS 不可用，白名单 DNS 已保护性阻断";
+            case "STOPPED":
+                return snapshot.userStopped
+                        ? "Box 已被主动停止，DNS hooks 不应被 watchdog 重建"
+                        : "Box 当前未运行";
+            default:
+                return "Root、Box 或 AGH 模块状态异常";
+        }
+    }
+
+    private String ordinaryDnsTarget() {
+        if (snapshot.userStopped || !snapshot.boxUp) return "系统 DNS（Box stopped）";
+        if (snapshot.route5591) return "Domestic :5591";
+        return snapshot.domesticUp ? "Domestic available / rule unknown" : "系统 DNS";
+    }
+
+    private String whitelistDnsTarget() {
+        if (snapshot.userStopped || !snapshot.boxUp) return "系统 DNS（Box stopped）";
+        if (snapshot.route5592) return "Foreign :5592";
+        if (snapshot.route1053) return "Mihomo :1053 fallback";
+        if (snapshot.route65534) return ":65534 FAIL-CLOSED";
+        return "规则未识别";
+    }
+
+    private View routeCell(String label, String value, int color) {
+        LinearLayout box = column();
+        box.setGravity(Gravity.CENTER);
+
+        TextView dot = text("●", 15, true);
+        dot.setTextColor(color);
+        box.addView(dot);
+
+        TextView v = text(value, 13, true);
+        box.addView(v);
+
+        TextView l = text(label, 10, false);
+        l.setTextColor(MUTED);
+        box.addView(l);
+        return box;
+    }
+
+    private View pageTitle(String title, String subtitle) {
+        LinearLayout box = column();
+        box.addView(text(title, 27, true));
+        TextView sub = text(subtitle, 12, false);
+        sub.setTextColor(MUTED);
+        sub.setPadding(0, dp(2), 0, dp(8));
+        box.addView(sub);
+        return box;
+    }
+
+    private View infoRow(String key, String value) {
+        LinearLayout row = rowLayout();
+        row.setPadding(0, dp(8), 0, dp(8));
+
+        TextView k = text(key, 13, false);
+        k.setTextColor(MUTED);
+        row.addView(k, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.38f));
+
+        TextView v = text(value, 13, false);
+        v.setGravity(Gravity.END);
+        v.setTextIsSelectable(true);
+        row.addView(v, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.62f));
+        return row;
+    }
+
     private void copyText(String label, String value) {
-        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-        clipboard.setPrimaryClip(ClipData.newPlainText(label, value == null ? "" : value));
+        ClipboardManager clipboard =
+                (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        clipboard.setPrimaryClip(ClipData.newPlainText(
+                label, value == null ? "" : value));
         Toast.makeText(this, "已复制到剪贴板", Toast.LENGTH_SHORT).show();
     }
 
     private void openWeb(String title, String url) {
-        Intent i = new Intent(this, WebViewActivity.class);
-        i.putExtra("title", title);
-        i.putExtra("url", url);
-        startActivity(i);
+        Intent intent = new Intent(this, WebViewActivity.class);
+        intent.putExtra("title", title);
+        intent.putExtra("url", url);
+        startActivity(intent);
     }
 
     private void scheduleNextRefresh() {
         main.removeCallbacks(autoRefresh);
-        if (refreshMs > 0 && !destroyed) main.postDelayed(autoRefresh, refreshMs);
+        if (refreshMs > 0 && !destroyed) {
+            main.postDelayed(autoRefresh, refreshMs);
+        }
     }
 
     private final Runnable autoRefresh = new Runnable() {
@@ -565,33 +971,34 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout column() {
-        LinearLayout l = new LinearLayout(this);
-        l.setOrientation(LinearLayout.VERTICAL);
-        return l;
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        return layout;
     }
 
     private LinearLayout rowLayout() {
-        LinearLayout l = new LinearLayout(this);
-        l.setOrientation(LinearLayout.HORIZONTAL);
-        l.setGravity(Gravity.CENTER_VERTICAL);
-        return l;
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.HORIZONTAL);
+        layout.setGravity(Gravity.CENTER_VERTICAL);
+        return layout;
     }
 
     private LinearLayout card() {
         LinearLayout card = column();
         card.setPadding(dp(16), dp(16), dp(16), dp(16));
         card.setBackground(rounded(SURFACE, BORDER, 18));
-        LinearLayout.LayoutParams p = matchWrap();
-        p.setMargins(0, dp(8), 0, dp(8));
-        card.setLayoutParams(p);
+
+        LinearLayout.LayoutParams params = matchWrap();
+        params.setMargins(0, dp(8), 0, dp(8));
+        card.setLayoutParams(params);
         return card;
     }
 
     private TextView sectionTitle(String title) {
-        TextView t = text(title, 16, true);
-        t.setTextColor(Color.rgb(214, 222, 232));
-        t.setPadding(dp(4), dp(16), 0, dp(4));
-        return t;
+        TextView text = text(title, 16, true);
+        text.setTextColor(Color.rgb(214, 222, 232));
+        text.setPadding(dp(4), dp(16), 0, dp(4));
+        return text;
     }
 
     private TextView chip(String label, int color) {
@@ -599,84 +1006,74 @@ public class MainActivity extends Activity {
         chip.setGravity(Gravity.CENTER);
         chip.setTextColor(color);
         chip.setPadding(dp(10), dp(6), dp(10), dp(6));
-        chip.setBackground(rounded(withAlpha(color, 28), withAlpha(color, 100), 50));
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
+        chip.setBackground(rounded(
+                withAlpha(color, 28),
+                withAlpha(color, 100),
+                50));
+
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, dp(30));
-        p.setMargins(0, 0, dp(8), 0);
-        chip.setLayoutParams(p);
+        params.setMargins(0, 0, dp(7), 0);
+        chip.setLayoutParams(params);
         return chip;
-    }
-
-    private TextView actionButton(String label, String action, int color) {
-        TextView b = smallButton(label, withAlpha(color, 38));
-        b.setTextColor(color);
-        b.setBackground(rounded(withAlpha(color, 32), withAlpha(color, 110), 14));
-        b.setOnClickListener(v -> runAction(label, action));
-        return b;
-    }
-
-    private TextView outlineButton(String label, String action) {
-        TextView b = smallButton(label, SURFACE_ALT);
-        b.setOnClickListener(v -> runAction(label, action));
-        return b;
-    }
-
-    private TextView webButton(String label, String title, String url) {
-        TextView b = smallButton(label, BLUE);
-        b.setOnClickListener(v -> openWeb(title, url));
-        return b;
     }
 
     private LinearLayout actionRow(TextView... buttons) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         for (TextView button : buttons) {
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, dp(48), 1);
-            p.setMargins(dp(3), dp(3), dp(3), dp(3));
-            row.addView(button, p);
+            LinearLayout.LayoutParams params =
+                    new LinearLayout.LayoutParams(0, dp(48), 1);
+            params.setMargins(dp(3), dp(3), dp(3), dp(3));
+            row.addView(button, params);
         }
         return row;
     }
 
-    private TextView smallButton(String label, int bg) {
-        TextView b = text(label, 13, true);
-        b.setGravity(Gravity.CENTER);
-        b.setPadding(dp(12), dp(8), dp(12), dp(8));
-        b.setBackground(rounded(bg, bg, 14));
-        b.setClickable(true);
-        b.setFocusable(true);
-        return b;
+    private TextView smallButton(String label, int background) {
+        TextView button = text(label, 12, true);
+        button.setGravity(Gravity.CENTER);
+        button.setPadding(dp(10), dp(8), dp(10), dp(8));
+        button.setBackground(rounded(background, background, 14));
+        button.setClickable(true);
+        button.setFocusable(true);
+        return button;
     }
 
     private TextView largeButton(String label, int color) {
-        TextView b = text(label, 14, true);
-        b.setGravity(Gravity.CENTER);
-        b.setTextColor(Color.WHITE);
-        b.setPadding(dp(16), dp(12), dp(16), dp(12));
-        b.setBackground(rounded(color, color, 15));
-        b.setClickable(true);
-        return b;
+        TextView button = text(label, 14, true);
+        button.setGravity(Gravity.CENTER);
+        button.setTextColor(Color.WHITE);
+        button.setPadding(dp(16), dp(12), dp(16), dp(12));
+        button.setBackground(rounded(color, color, 15));
+        button.setClickable(true);
+        return button;
     }
 
-    private TextView text(String s, int sp, boolean bold) {
-        TextView v = new TextView(this);
-        v.setText(s);
-        v.setTextColor(TEXT);
-        v.setTextSize(sp);
-        v.setTypeface(Typeface.DEFAULT, bold ? Typeface.BOLD : Typeface.NORMAL);
-        return v;
+    private TextView text(String value, int sp, boolean bold) {
+        TextView view = new TextView(this);
+        view.setText(value);
+        view.setTextColor(TEXT);
+        view.setTextSize(sp);
+        view.setTypeface(Typeface.DEFAULT,
+                bold ? Typeface.BOLD : Typeface.NORMAL);
+        return view;
     }
 
     private GradientDrawable rounded(int fill, int stroke, int radiusDp) {
-        GradientDrawable d = new GradientDrawable();
-        d.setColor(fill);
-        d.setCornerRadius(dp(radiusDp));
-        d.setStroke(dp(1), stroke);
-        return d;
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(fill);
+        drawable.setCornerRadius(dp(radiusDp));
+        drawable.setStroke(dp(1), stroke);
+        return drawable;
     }
 
     private int withAlpha(int color, int alpha) {
-        return Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color));
+        return Color.argb(
+                alpha,
+                Color.red(color),
+                Color.green(color),
+                Color.blue(color));
     }
 
     private LinearLayout.LayoutParams matchWrap() {
@@ -686,18 +1083,16 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout.LayoutParams weight() {
-        return new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        return new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
     }
 
-    private String refreshLabel(long ms) {
-        if (ms <= 0) return "关闭";
-        if (ms % 1000 == 0) return (ms / 1000) + " 秒";
-        return ms + " ms";
+    private String safe(String value, String fallback) {
+        return TextUtils.isEmpty(value) ? fallback : value;
     }
 
-    private int dp(int v) {
-        return Math.round(v * getResources().getDisplayMetrics().density);
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
     }
 
     @Override
@@ -716,52 +1111,141 @@ public class MainActivity extends Activity {
 
     private static final class StatusSnapshot {
         boolean rootOk;
-        boolean moduleReady;
+        boolean aghModuleReady;
+        boolean boxModuleReady;
+
         boolean domesticUp;
         boolean foreignUp;
+        boolean boxUp;
+        boolean userStopped;
+
         boolean port5591Up;
         boolean port5592Up;
         boolean port1053Up;
+        boolean port9090Up;
+
+        boolean route5591;
+        boolean route5592;
+        boolean route1053;
+        boolean route65534;
+
         String domesticPid = "";
         String foreignPid = "";
-        String boxMode = "";
+        String boxPid = "";
+        String boxBin = "";
+        String boxVersion = "";
+        String boxController = "";
+        String proxyMode = "";
+        String networkMode = "";
+        String dnsHijackMode = "";
+        String ipv6 = "";
 
         static StatusSnapshot checking() {
             return new StatusSnapshot();
         }
 
-        static StatusSnapshot from(RootShell.Result r) {
-            StatusSnapshot s = new StatusSnapshot();
-            s.rootOk = r.ok();
-            if (!r.ok()) return s;
+        String dashboardUrl() {
+            String controller = boxController == null ? "" : boxController.trim();
+            if (controller.isEmpty()) controller = "127.0.0.1:9090";
+            controller = controller.replace("\"", "");
 
-            String out = r.output == null ? "" : r.output;
-            s.moduleReady = out.contains("===MODULE===\nREADY");
-            for (String raw : out.split("\n")) {
+            if (controller.startsWith("http://")) {
+                controller = controller.substring(7);
+            } else if (controller.startsWith("https://")) {
+                controller = controller.substring(8);
+            }
+
+            if (controller.startsWith("0.0.0.0:")) {
+                controller = "127.0.0.1:" + controller.substring("0.0.0.0:".length());
+            } else if (controller.startsWith("*:")) {
+                controller = "127.0.0.1:" + controller.substring(2);
+            } else if (controller.startsWith("[::]:")) {
+                controller = "127.0.0.1:" + controller.substring("[::]:".length());
+            }
+            return "http://" + controller + "/ui/";
+        }
+
+        static StatusSnapshot from(RootShell.Result result) {
+            StatusSnapshot snapshot = new StatusSnapshot();
+            snapshot.rootOk = result.ok();
+            if (!result.ok()) return snapshot;
+
+            String output = result.output == null ? "" : result.output;
+            boolean inDnsRules = false;
+
+            for (String raw : output.split("\n")) {
                 String line = raw.trim();
-                if (line.startsWith("domestic:")) {
-                    s.domesticUp = line.contains(" up ");
-                    s.domesticPid = valueAfter(line, "pid=");
+
+                if ("===DNS_RULES===".equals(line)) {
+                    inDnsRules = true;
+                    continue;
+                }
+                if ("===END===".equals(line)) {
+                    inDnsRules = false;
+                    continue;
+                }
+
+                if ("AGH_MODULE=ready".equals(line)) {
+                    snapshot.aghModuleReady = true;
+                } else if ("BOX_MODULE=ready".equals(line)) {
+                    snapshot.boxModuleReady = true;
+                } else if (line.startsWith("domestic:")) {
+                    snapshot.domesticUp = line.contains(" up ");
+                    snapshot.domesticPid = valueAfter(line, "pid=");
                 } else if (line.startsWith("foreign:")) {
-                    s.foreignUp = line.contains(" up ");
-                    s.foreignPid = valueAfter(line, "pid=");
+                    snapshot.foreignUp = line.contains(" up ");
+                    snapshot.foreignPid = valueAfter(line, "pid=");
+                } else if ("BOX_STATUS=up".equals(line)) {
+                    snapshot.boxUp = true;
+                } else if ("BOX_USER_STOPPED=true".equals(line)) {
+                    snapshot.userStopped = true;
+                } else if (line.startsWith("BOX_PID=")) {
+                    snapshot.boxPid = afterEquals(line);
+                } else if (line.startsWith("BOX_BIN=")) {
+                    snapshot.boxBin = afterEquals(line);
+                } else if (line.startsWith("BOX_VERSION=")) {
+                    snapshot.boxVersion = afterEquals(line);
+                } else if (line.startsWith("BOX_CONTROLLER=")) {
+                    snapshot.boxController = afterEquals(line);
+                } else if (line.startsWith("proxy_mode=")) {
+                    snapshot.proxyMode = cleanSetting(afterEquals(line));
+                } else if (line.startsWith("network_mode=")) {
+                    snapshot.networkMode = cleanSetting(afterEquals(line));
                 } else if (line.startsWith("dns_hijack_mode=")) {
-                    s.boxMode = line.substring("dns_hijack_mode=".length()).replace("\"", "");
-                } else if ("5591=up".equals(line)) {
-                    s.port5591Up = true;
-                } else if ("5592=up".equals(line)) {
-                    s.port5592Up = true;
-                } else if ("1053=up".equals(line)) {
-                    s.port1053Up = true;
+                    snapshot.dnsHijackMode = cleanSetting(afterEquals(line));
+                } else if (line.startsWith("ipv6=")) {
+                    snapshot.ipv6 = cleanSetting(afterEquals(line));
+                } else if ("PORT_5591=up".equals(line)) {
+                    snapshot.port5591Up = true;
+                } else if ("PORT_5592=up".equals(line)) {
+                    snapshot.port5592Up = true;
+                } else if ("PORT_1053=up".equals(line)) {
+                    snapshot.port1053Up = true;
+                } else if ("PORT_9090=up".equals(line)) {
+                    snapshot.port9090Up = true;
+                } else if (inDnsRules) {
+                    if (line.contains("--to-ports 5591")) snapshot.route5591 = true;
+                    if (line.contains("--to-ports 5592")) snapshot.route5592 = true;
+                    if (line.contains("--to-ports 1053")) snapshot.route1053 = true;
+                    if (line.contains("--to-ports 65534")) snapshot.route65534 = true;
                 }
             }
-            return s;
+            return snapshot;
+        }
+
+        private static String cleanSetting(String value) {
+            return value == null ? "" : value.replace("\"", "").trim();
+        }
+
+        private static String afterEquals(String line) {
+            int index = line.indexOf('=');
+            return index < 0 ? "" : line.substring(index + 1).trim();
         }
 
         private static String valueAfter(String line, String key) {
-            int i = line.indexOf(key);
-            if (i < 0) return "";
-            String rest = line.substring(i + key.length());
+            int index = line.indexOf(key);
+            if (index < 0) return "";
+            String rest = line.substring(index + key.length());
             int end = rest.indexOf(' ');
             return end >= 0 ? rest.substring(0, end) : rest;
         }
