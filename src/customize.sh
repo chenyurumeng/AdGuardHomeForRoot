@@ -57,8 +57,13 @@ extract_no_config() {
   info "- 💾 Backing up old configuration files with .bak extension..." "- 💾 使用 .bak 扩展名备份旧配置文件..."
   [ -f "$AGH_DIR/settings.conf" ] && mv "$AGH_DIR/settings.conf" "$AGH_DIR/settings.conf.bak"
   [ -f "$AGH_DIR/bin/AdGuardHome.yaml" ] && mv "$AGH_DIR/bin/AdGuardHome.yaml" "$AGH_DIR/bin/AdGuardHome.yaml.bak"
+  # Dual-instance configs are user data too. Back them up with a timestamp
+  # before replacing templates so a reinstall/test cannot destroy a working set.
+  local stamp inst cfg
+  stamp=$(date '+%Y%m%d%H%M%S')
   for inst in domestic foreign; do
-    [ -f "$AGH_DIR/instances/$inst/AdGuardHome.yaml" ] && mv "$AGH_DIR/instances/$inst/AdGuardHome.yaml" "$AGH_DIR/instances/$inst/AdGuardHome.yaml.bak"
+    cfg="$AGH_DIR/instances/$inst/AdGuardHome.yaml"
+    [ -f "$cfg" ] && mv "$cfg" "$cfg.bak.$stamp"
   done
   extract_all
 }
