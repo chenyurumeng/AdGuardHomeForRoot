@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.chenyurumeng.aghmanager.model.AghInstance
 import io.github.chenyurumeng.aghmanager.model.AghInstanceState
 import io.github.chenyurumeng.aghmanager.ui.theme.StatusError
 import io.github.chenyurumeng.aghmanager.ui.theme.StatusHealthy
@@ -27,6 +28,7 @@ import io.github.chenyurumeng.aghmanager.ui.theme.StatusHealthy
 fun AghScreen(
     viewModel: AghViewModel,
     contentPadding: PaddingValues,
+    onOpenControl: (AghInstance) -> Unit,
     onOpenWeb: (String, String) -> Unit
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -59,11 +61,15 @@ fun AghScreen(
         item {
             InstanceCard(
                 instance = state.domestic,
+                controlInstance = AghInstance.DOMESTIC,
                 enabled = enabled,
                 onStart = viewModel::startDomestic,
                 onRestart = viewModel::restartDomestic,
                 onStop = viewModel::stopDomestic,
-                onOpenWeb = { onOpenWeb("Domestic AGH", "http://127.0.0.1:3000") }
+                onOpenControl = { onOpenControl(AghInstance.DOMESTIC) },
+                onOpenWeb = {
+                    onOpenWeb("Domestic AGH", "http://127.0.0.1:" + state.domestic.webPort)
+                }
             )
         }
 
@@ -71,11 +77,15 @@ fun AghScreen(
         item {
             InstanceCard(
                 instance = state.foreign,
+                controlInstance = AghInstance.FOREIGN,
                 enabled = enabled,
                 onStart = viewModel::startForeign,
                 onRestart = viewModel::restartForeign,
                 onStop = viewModel::stopForeign,
-                onOpenWeb = { onOpenWeb("Foreign AGH", "http://127.0.0.1:3001") }
+                onOpenControl = { onOpenControl(AghInstance.FOREIGN) },
+                onOpenWeb = {
+                    onOpenWeb("Foreign AGH", "http://127.0.0.1:" + state.foreign.webPort)
+                }
             )
         }
     }
@@ -84,10 +94,12 @@ fun AghScreen(
 @Composable
 private fun InstanceCard(
     instance: AghInstanceState,
+    controlInstance: AghInstance,
     enabled: Boolean,
     onStart: () -> Unit,
     onRestart: () -> Unit,
     onStop: () -> Unit,
+    onOpenControl: () -> Unit,
     onOpenWeb: () -> Unit
 ) {
     Surface(
@@ -117,11 +129,18 @@ private fun InstanceCard(
                 onStop = onStop,
                 modifier = Modifier.padding(top = 14.dp)
             )
+            Button(
+                onClick = onOpenControl,
+                enabled = enabled,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+            ) {
+                Text("打开 " + controlInstance.label + " 控制中心")
+            }
             OutlinedButton(
                 onClick = onOpenWeb,
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
             ) {
-                Text("打开 " + instance.name + " 管理界面")
+                Text("打开完整 WebUI")
             }
         }
     }

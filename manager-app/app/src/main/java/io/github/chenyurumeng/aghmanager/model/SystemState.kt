@@ -64,16 +64,16 @@ data class SystemState(
 
     fun domesticDnsTarget(): String {
         if (box.userStopped || !box.running) return "系统 DNS（Box stopped）"
-        if (dns.route5591 && dns.port5591) return "Domestic :5591"
-        return if (domestic.running) "Domestic :5591" else "Android 系统 DNS"
+        if (dns.route5591 && dns.port5591) return "Domestic :" + domestic.dnsPort
+        return if (domestic.running) "Domestic :" + domestic.dnsPort else "Android 系统 DNS"
     }
 
     fun foreignDnsTarget(): String {
         if (box.userStopped || !box.running) return "系统 DNS（Box stopped）"
-        if (dns.route5592 && dns.port5592) return "Foreign :5592"
+        if (dns.route5592 && dns.port5592) return "Foreign :" + foreign.dnsPort
         if (dns.route1053 && dns.port1053) return "Mihomo :1053 fallback"
         if (dns.route65534) return ":65534 FAIL-CLOSED"
-        if (foreign.running) return "Foreign :5592"
+        if (foreign.running) return "Foreign :" + foreign.dnsPort
         if (dns.port1053) return "Mihomo :1053 fallback"
         return "FAIL-CLOSED"
     }

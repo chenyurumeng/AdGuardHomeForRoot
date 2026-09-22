@@ -59,6 +59,9 @@ fun AppNavigation(
     mihomoSubscriptionRepository: MihomoSubscriptionRepository,
     logRepository: LogRepository,
     diagnosticRepository: DiagnosticRepository,
+    aghConfigRepository: AghConfigRepository,
+    aghCredentialStore: AghCredentialStore,
+    aghApiRepository: AghApiRepository,
     orchestrator: SystemOrchestrator,
     boxController: BoxController,
     aghController: AghController,
@@ -73,7 +76,8 @@ fun AppNavigation(
         currentRoute == "mihomoControl" ||
         currentRoute == "mihomoConnections" ||
         currentRoute?.startsWith("mihomoConnection/") == true ||
-        currentRoute == "mihomoSubscriptions"
+        currentRoute == "mihomoSubscriptions" ||
+        currentRoute?.startsWith("aghControl/") == true
     val current = destinations.firstOrNull { it.route == currentRoute }
         ?: destinations.firstOrNull { it.route == "box" }
         ?: destinations.first()
@@ -95,7 +99,7 @@ fun AppNavigation(
                             Text(current.label)
                             if (currentRoute == "home") {
                                 Text(
-                                    "Box & AGH Manager · v0.5.0-rc6",
+                                    "Box & AGH Manager · v0.5.0-rc7",
                                     style = androidx.compose.material3.MaterialTheme.typography.labelSmall
                                 )
                             }
@@ -241,7 +245,44 @@ fun AppNavigation(
             composable("agh") {
                 val vm: AghViewModel = viewModel(factory = AghViewModel.Factory(statusRepository, aghController))
                 LaunchedEffect(vm) { vm.messages.collect { snackbarHostState.showSnackbar(it) } }
-                AghScreen(viewModel = vm, contentPadding = innerPadding, onOpenWeb = onOpenAghWeb)
+                AghScreen(
+                    viewModel = vm,
+                    contentPadding = innerPadding,
+                    onOpenControl = { instance ->
+                        navController.navigate("aghControl/" + instance.key)
+                    },
+                    onOpenWeb = onOpenAghWeb
+                )
+            }
+            composable(
+                route = "aghControl/{instance}",
+                arguments = listOf(
+                    androidx.navigation.navArgument("instance") {
+                        type = androidx.navigation.NavType.StringType
+                    }
+                )
+            ) { entry ->
+                val instance = io.github.chenyurumeng.aghmanager.model.AghInstance.fromKey(
+                    entry.arguments?.getString("instance")
+                )
+                val vm: AghControlViewModel = viewModel(
+                    factory = AghControlViewModel.Factory(
+                        instance = instance,
+                        configRepository = aghConfigRepository,
+                        apiRepository = aghApiRepository,
+                        credentialStore = aghCredentialStore,
+                        statusRepository = statusRepository
+                    )
+                )
+                LaunchedEffect(vm) {
+                    vm.messages.collect { snackbarHostState.showSnackbar(it) }
+                }
+                AghControlScreen(
+                    viewModel = vm,
+                    contentPadding = innerPadding,
+                    onBack = { navController.popBackStack() },
+                    onOpenWeb = onOpenAghWeb
+                )
             }
             composable("logs") {
                 val vm: LogsViewModel = viewModel(factory = LogsViewModel.Factory(logRepository))

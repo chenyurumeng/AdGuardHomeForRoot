@@ -22,6 +22,11 @@ class ComposeMainActivity : ComponentActivity() {
     private val mihomoSubscriptionRepository = MihomoSubscriptionRepository()
     private val logRepository = LogRepository()
     private val diagnosticRepository = DiagnosticRepository()
+    private val aghConfigRepository = AghConfigRepository()
+    private val aghCredentialStore by lazy { AghCredentialStore(applicationContext) }
+    private val aghApiRepository by lazy {
+        AghApiRepository(aghConfigRepository, aghCredentialStore)
+    }
     private val orchestrator = SystemOrchestrator(statusRepository)
     private val boxController = BoxController(statusRepository)
     private val aghController = AghController(statusRepository)
@@ -42,6 +47,9 @@ class ComposeMainActivity : ComponentActivity() {
                     mihomoSubscriptionRepository = mihomoSubscriptionRepository,
                     logRepository = logRepository,
                     diagnosticRepository = diagnosticRepository,
+                    aghConfigRepository = aghConfigRepository,
+                    aghCredentialStore = aghCredentialStore,
+                    aghApiRepository = aghApiRepository,
                     orchestrator = orchestrator,
                     boxController = boxController,
                     aghController = aghController,
@@ -49,7 +57,7 @@ class ComposeMainActivity : ComponentActivity() {
                         openWeb(MihomoWebViewActivity::class.java, "Mihomo Dashboard", url)
                     },
                     onOpenAghWeb = { title, url ->
-                        val target = if (url.contains(":3001")) {
+                        val target = if (title.contains("Foreign", ignoreCase = true)) {
                             ForeignWebViewActivity::class.java
                         } else {
                             DomesticWebViewActivity::class.java

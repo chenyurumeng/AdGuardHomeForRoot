@@ -87,7 +87,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, contentPadding: PaddingValues) 
         }
 
         item { SectionHeader("关于") }
-        item { InfoRow("版本", "0.5.0-rc6") }
+        item { InfoRow("版本", "0.5.0-rc7") }
         item { HorizontalDivider() }
         item { InfoRow("Box 后端", StatusRepository.BOX_SERVICE) }
         item { HorizontalDivider() }
@@ -95,9 +95,19 @@ fun SettingsScreen(viewModel: SettingsViewModel, contentPadding: PaddingValues) 
         item { HorizontalDivider() }
         item { InfoRow("Mihomo Dashboard", dashboardUrl(state)) }
         item { HorizontalDivider() }
-        item { InfoRow("Domestic", "DNS 5591 / Web 3000") }
+        item {
+            InfoRow(
+                "Domestic",
+                "DNS " + state.domestic.dnsPort + " / Web " + state.domestic.webPort
+            )
+        }
         item { HorizontalDivider() }
-        item { InfoRow("Foreign", "DNS 5592 / Web 3001") }
+        item {
+            InfoRow(
+                "Foreign",
+                "DNS " + state.foreign.dnsPort + " / Web " + state.foreign.webPort
+            )
+        }
     }
 }
 
