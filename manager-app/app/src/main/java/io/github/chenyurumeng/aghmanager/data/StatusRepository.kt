@@ -30,6 +30,7 @@ class StatusRepository {
     }
 
     private suspend fun querySnapshot(): SystemState {
+        val sh = '$'
         val command = listOf(
             "echo '===MODULES==='",
             "[ -x " + AGH_TOOL + " ] && echo 'AGH_MODULE=ready' || echo 'AGH_MODULE=missing'",
@@ -39,17 +40,17 @@ class StatusRepository {
             "echo '===BOX_SETTINGS==='",
             "if [ -f " + BOX_SETTINGS + " ]; then grep -E '^(bin_name|proxy_mode|network_mode|dns_hijack_mode|ipv6|domestic_dns_port|foreign_dns_port|foreign_dns_fallback_port|foreign_dns_fail_port)=' " + BOX_SETTINGS + " 2>/dev/null || true; fi",
             "echo '===BOX_PROCESS==='",
-            "bin=\$(sed -n 's/^bin_name="\\([^\"]*\\)".*/\\1/p' " + BOX_SETTINGS + " 2>/dev/null | head -n1)",
-            "[ -n "\$bin" ] || bin=mihomo",
-            "echo "BOX_BIN=\$bin"",
-            "pid=\$(cat /data/adb/box/run/box.pid 2>/dev/null)",
-            "if [ -n "\$pid" ] && kill -0 "\$pid" 2>/dev/null; then echo 'BOX_STATUS=up'; echo "BOX_PID=\$pid"; else echo 'BOX_STATUS=down'; fi",
+            """bin=${sh}(sed -n 's/^bin_name="\([^"]*\)".*/\1/p' ${BOX_SETTINGS} 2>/dev/null | head -n1)""",
+            """[ -n "${sh}bin" ] || bin=mihomo""",
+            """echo BOX_BIN=${sh}bin""",
+            """pid=${sh}(cat /data/adb/box/run/box.pid 2>/dev/null)""",
+            """if [ -n "${sh}pid" ] && kill -0 "${sh}pid" 2>/dev/null; then echo 'BOX_STATUS=up'; echo BOX_PID=${sh}pid; else echo 'BOX_STATUS=down'; fi""",
             "[ -f " + BOX_STOP_GUARD + " ] && echo 'BOX_USER_STOPPED=true' || echo 'BOX_USER_STOPPED=false'",
-            "if [ "\$bin" = mihomo ] && [ -x /data/adb/box/bin/mihomo ]; then v=\$(/data/adb/box/bin/mihomo -v 2>/dev/null | head -n1); echo "BOX_VERSION=\$v"; fi",
-            "controller=\$(awk '!/^[[:space:]]*#/ && /external-controller:[[:space:]]/ {print \$2; exit}' /data/adb/box/mihomo/config.yaml 2>/dev/null | tr -d '"')",
-            "[ -n "\$controller" ] && echo "BOX_CONTROLLER=\$controller"",
+            """if [ "${sh}bin" = mihomo ] && [ -x /data/adb/box/bin/mihomo ]; then v=${sh}(/data/adb/box/bin/mihomo -v 2>/dev/null | head -n1); echo "BOX_VERSION=${sh}v"; fi""",
+            """controller=${sh}(awk '!/^[[:space:]]*#/ && /external-controller:[[:space:]]/ {print ${sh}2; exit}' /data/adb/box/mihomo/config.yaml 2>/dev/null | tr -d '"')""",
+            """[ -n "${sh}controller" ] && echo BOX_CONTROLLER=${sh}controller""",
             "echo '===PORTS==='",
-            "for p in 5591 5592 1053 9090; do if ss -lntu 2>/dev/null | grep -qE '[:.]'\$p'([[:space:]]|\$)'; then echo "PORT_\$p=up"; else echo "PORT_\$p=down"; fi; done",
+            """for p in 5591 5592 1053 9090; do if ss -lntu 2>/dev/null | grep -qE '[:.]'${sh}p'([[:space:]]|${sh})'; then echo PORT_${sh}p=up; else echo PORT_${sh}p=down; fi; done""",
             "echo '===DNS_RULES==='",
             "iptables -t nat -S NAT_DNS_HIJACK 2>/dev/null || true",
             "echo '===END==='",
@@ -191,7 +192,7 @@ class StatusRepository {
         )
     }
 
-    private fun cleanSetting(value: String): String = value.replace(""", "").trim()
+    private fun cleanSetting(value: String): String = value.replace("\"", "").trim()
 
     private fun afterEquals(line: String): String {
         val index = line.indexOf('=')
