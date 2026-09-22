@@ -32,9 +32,16 @@ public class WebViewActivity extends Activity {
     private ProgressBar progress;
     private String url;
 
+    protected String dataDirectorySuffix() {
+        return "web_default";
+    }
+
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        if (android.os.Build.VERSION.SDK_INT >= 28) {
+            WebView.setDataDirectorySuffix(dataDirectorySuffix());
+        }
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
 
