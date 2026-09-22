@@ -606,7 +606,7 @@ public class MainActivity extends Activity {
     private View buildSettingsPage() {
         ScrollView scroll = pageScroll();
         LinearLayout root = pageColumn(scroll);
-        root.addView(pageTitle("设置", "Box & AGH Manager v0.4.0-rc2"));
+        root.addView(pageTitle("设置", "Box & AGH Manager v0.4.0-rc3"));
 
         root.addView(sectionTitle("自动刷新"));
         LinearLayout refreshCard = card();
@@ -653,7 +653,7 @@ public class MainActivity extends Activity {
 
         root.addView(sectionTitle("关于"));
         LinearLayout about = card();
-        about.addView(infoRow("版本", "0.4.0-rc2"));
+        about.addView(infoRow("版本", "0.4.0-rc3"));
         about.addView(infoRow("Box 后端", BOX_SERVICE));
         about.addView(infoRow("AGH 后端", AGH_TOOL));
         about.addView(infoRow("Mihomo Dashboard", snapshot.dashboardUrl()));
@@ -706,11 +706,88 @@ public class MainActivity extends Activity {
             main.post(() -> {
                 refreshing = false;
                 snapshot = parsed;
-                if (currentPage == 0 || currentPage == 1 || currentPage == 2 || currentPage == 4) {
-                    renderPagePreservingScroll();
-                }
+                updateVisibleStatus();
             });
         });
+    }
+
+    private void updateVisibleStatus() {
+        if (destroyed || content == null) return;
+
+        if (currentPage == 0) {
+            setBoundChip("home.root", snapshot.rootOk ? "ROOT OK" : "ROOT ?",
+                    snapshot.rootOk ? GREEN : RED);
+            setBoundChip("home.boxReady", snapshot.boxModuleReady ? "BOX READY" : "BOX ?",
+                    snapshot.boxModuleReady ? GREEN : ORANGE);
+            setBoundChip("home.aghReady", snapshot.aghModuleReady ? "AGH READY" : "AGH ?",
+                    snapshot.aghModuleReady ? GREEN : ORANGE);
+
+            setBoundText("home.healthDetail", healthDetail());
+            setBoundChip("home.healthChip", healthLabel(), healthColor());
+
+            setBoundRouteCell("home.box",
+                    snapshot.boxUp ? safe(snapshot.boxBin, "core") : "DOWN",
+                    snapshot.boxUp ? GREEN : RED);
+            setBoundRouteCell("home.domestic",
+                    snapshot.domesticUp ? "5591" : "DOWN",
+                    snapshot.domesticUp ? GREEN : RED);
+            setBoundRouteCell("home.foreign",
+                    snapshot.foreignUp ? "5592" : "DOWN",
+                    snapshot.foreignUp ? GREEN : ORANGE);
+            setBoundRouteCell("home.fallback",
+                    snapshot.port1053Up ? "1053" : "DOWN",
+                    snapshot.port1053Up ? GREEN : ORANGE);
+
+            setBoundText("home.boxTitle", "Box / " + safe(snapshot.boxBin, "core"));
+            setBoundText("home.boxMeta",
+                    "PID " + safe(snapshot.boxPid, "-")
+                            + " · " + safe(snapshot.proxyMode, "?")
+                            + " · " + safe(snapshot.networkMode, "?")
+                            + " · DNS " + safe(snapshot.dnsHijackMode, "?"));
+            setBoundChip("home.boxStatus", snapshot.boxUp ? "RUNNING" : "STOPPED",
+                    snapshot.boxUp ? GREEN : RED);
+            setBoundText("home.boxVersion", snapshot.boxVersion);
+
+            boolean allUp = snapshot.domesticUp && snapshot.foreignUp;
+            setBoundChip("home.aghStatus", allUp ? "DUAL UP" : "DEGRADED",
+                    allUp ? GREEN : ORANGE);
+            setBoundColor("home.aghDomestic.dot", snapshot.domesticUp ? GREEN : RED);
+            setBoundText("home.aghDomestic.info", "5591 / 3000"
+                    + (TextUtils.isEmpty(snapshot.domesticPid) ? "" : " · PID " + snapshot.domesticPid));
+            setBoundColor("home.aghForeign.dot", snapshot.foreignUp ? GREEN : RED);
+            setBoundText("home.aghForeign.info", "5592 / 3001"
+                    + (TextUtils.isEmpty(snapshot.foreignPid) ? "" : " · PID " + snapshot.foreignPid));
+
+            setBoundText("home.routingMode",
+                    "split: " + safe(snapshot.dnsHijackMode, "?")
+                            + " · IPv6 " + safe(snapshot.ipv6, "?"));
+            setBoundChip("home.routingStatus",
+                    snapshot.userStopped ? "USER STOPPED" : "ACTIVE",
+                    snapshot.userStopped ? ORANGE : BLUE);
+
+            boolean blacklistMode = "blacklist".equalsIgnoreCase(snapshot.proxyMode)
+                    || "black".equalsIgnoreCase(snapshot.proxyMode);
+            if (blacklistMode) {
+                setBoundText("home.routePrimary.label", "黑名单应用");
+                setBoundText("home.routePrimary.value", "→ " + domesticDnsTarget());
+                setBoundText("home.routeSecondary.label", "其它应用");
+                setBoundText("home.routeSecondary.value", "→ " + foreignDnsTarget());
+            } else {
+                setBoundText("home.routePrimary.label", "白名单应用");
+                setBoundText("home.routePrimary.value", "→ " + foreignDnsTarget());
+                setBoundText("home.routeSecondary.label", "其它应用");
+                setBoundText("home.routeSecondary.value", "→ " + domesticDnsTarget());
+            }
+
+            setBoundRouteCell("home.port5591", snapshot.port5591Up ? "LISTEN" : "DOWN",
+                    snapshot.port5591Up ? GREEN : RED);
+            setBoundRouteCell("home.port5592", snapshot.port5592Up ? "LISTEN" : "DOWN",
+                    snapshot.port5592Up ? GREEN : RED);
+            setBoundRouteCell("home.port1053", snapshot.port1053Up ? "LISTEN" : "DOWN",
+                    snapshot.port1053Up ? GREEN : ORANGE);
+            setBoundRouteCell("home.port9090", snapshot.port9090Up ? "API" : "DOWN",
+                    snapshot.port9090Up ? GREEN : ORANGE);
+        }
     }
 
     private void runBoxAction(String label, String action) {
@@ -837,7 +914,7 @@ public class MainActivity extends Activity {
 
         io.execute(() -> {
             String command =
-                    "echo 'Box & AGH Manager v0.4.0-rc2'; " +
+                    "echo 'Box & AGH Manager v0.4.0-rc3'; " +
                     "echo '===== BOX STATUS ====='; " +
                     BOX_SERVICE + " status 2>&1 || true; " +
                     "echo '===== BOX STOP GUARD ====='; " +
@@ -963,20 +1040,62 @@ public class MainActivity extends Activity {
     }
 
     private View routeCell(String label, String value, int color) {
+        return routeCell(label, value, color, null);
+    }
+
+    private View routeCell(String label, String value, int color, String bindKey) {
         LinearLayout box = column();
         box.setGravity(Gravity.CENTER);
 
         TextView dot = text("●", 15, true);
         dot.setTextColor(color);
+        if (bindKey != null) bind(bindKey + ".dot", dot);
         box.addView(dot);
 
         TextView v = text(value, 13, true);
+        if (bindKey != null) bind(bindKey + ".value", v);
         box.addView(v);
 
         TextView l = text(label, 10, false);
         l.setTextColor(MUTED);
+        if (bindKey != null) bind(bindKey + ".label", l);
         box.addView(l);
         return box;
+    }
+
+    private TextView bind(String key, TextView view) {
+        if (key != null) statusViews.put(key, view);
+        return view;
+    }
+
+    private void setBoundText(String key, String value) {
+        TextView view = statusViews.get(key);
+        if (view != null && !TextUtils.equals(view.getText(), value)) {
+            view.setText(value);
+        }
+    }
+
+    private void setBoundColor(String key, int color) {
+        TextView view = statusViews.get(key);
+        if (view != null && view.getCurrentTextColor() != color) {
+            view.setTextColor(color);
+        }
+    }
+
+    private void setBoundChip(String key, String label, int color) {
+        TextView view = statusViews.get(key);
+        if (view == null) return;
+        if (!TextUtils.equals(view.getText(), label)) view.setText(label);
+        view.setTextColor(color);
+        view.setBackground(rounded(
+                withAlpha(color, 28),
+                withAlpha(color, 100),
+                50));
+    }
+
+    private void setBoundRouteCell(String key, String value, int color) {
+        setBoundText(key + ".value", value);
+        setBoundColor(key + ".dot", color);
     }
 
     private View pageTitle(String title, String subtitle) {
