@@ -11,6 +11,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.Gravity;
+import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -21,6 +22,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 public class WebViewActivity extends Activity {
+    private static boolean dataDirectoryConfigured;
+
     private static final int BG = Color.rgb(11, 15, 20);
     private static final int SURFACE = Color.rgb(20, 26, 34);
     private static final int BORDER = Color.rgb(47, 59, 74);
@@ -39,9 +42,7 @@ public class WebViewActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
-        if (android.os.Build.VERSION.SDK_INT >= 28) {
-            WebView.setDataDirectorySuffix(dataDirectorySuffix());
-        }
+        configureWebViewDataDirectoryOnce();
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
 
@@ -137,6 +138,15 @@ public class WebViewActivity extends Activity {
         webView.loadUrl(url);
     }
 
+    private void configureWebViewDataDirectoryOnce() {
+        if (android.os.Build.VERSION.SDK_INT < 28 || dataDirectoryConfigured) return;
+        synchronized (WebViewActivity.class) {
+            if (dataDirectoryConfigured) return;
+            WebView.setDataDirectorySuffix(dataDirectorySuffix());
+            dataDirectoryConfigured = true;
+        }
+    }
+
     private TextView toolButton(String label) {
         TextView v = text(label, 18, true);
         v.setGravity(Gravity.CENTER);
@@ -174,10 +184,25 @@ public class WebViewActivity extends Activity {
     }
 
     @Override
+    protected void onPause() {
+        if (android.os.Build.VERSION.SDK_INT >= 21) {
+            CookieManager.getInstance().flush();
+        }
+        super.onPause();
+    }
+
+    @Override
     protected void onDestroy() {
         if (webView != null) {
             webView.stopLoading();
+            webView.loadUrl("about:blank");
+            webView.setWebChromeClient(null);
+            webView.setWebViewClient(null);
+            if (webView.getParent() instanceof android.view.ViewGroup) {
+                ((android.view.ViewGroup) webView.getParent()).removeView(webView);
+            }
             webView.destroy();
+            webView = null;
         }
         super.onDestroy();
     }
