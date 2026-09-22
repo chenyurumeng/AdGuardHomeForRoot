@@ -87,7 +87,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, contentPadding: PaddingValues) 
         }
 
         item { SectionHeader("关于") }
-        item { InfoRow("版本", "0.5.0-rc1") }
+        item { InfoRow("版本", "0.5.0-rc2") }
         item { HorizontalDivider() }
         item { InfoRow("Box 后端", StatusRepository.BOX_SERVICE) }
         item { HorizontalDivider() }
@@ -121,10 +121,13 @@ private fun InfoRow(label: String, value: String) {
 
 private fun dashboardUrl(state: SystemState): String {
     val controller = state.box.controller.trim()
-    if (controller.isEmpty()) return "http://127.0.0.1:9090"
-    if (controller.startsWith("http://") || controller.startsWith("https://")) return controller
-    if (controller.startsWith(":")) return "http://127.0.0.1" + controller
-    if (controller.startsWith("0.0.0.0:")) return "http://127.0.0.1:" + controller.substringAfter(':')
-    if (controller.startsWith("*:")) return "http://127.0.0.1:" + controller.substringAfter(':')
-    return "http://" + controller
+    val base = when {
+        controller.isEmpty() -> "http://127.0.0.1:9090"
+        controller.startsWith("http://") || controller.startsWith("https://") -> controller
+        controller.startsWith(":") -> "http://127.0.0.1" + controller
+        controller.startsWith("0.0.0.0:") -> "http://127.0.0.1:" + controller.substringAfter(':')
+        controller.startsWith("*:") -> "http://127.0.0.1:" + controller.substringAfter(':')
+        else -> "http://" + controller
+    }
+    return base.trimEnd('/') + "/ui/"
 }

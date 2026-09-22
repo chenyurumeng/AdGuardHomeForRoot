@@ -1,17 +1,17 @@
 package io.github.chenyurumeng.aghmanager.model
 
-enum class RoutingMode(val raw: String) {
-    WHITELIST("whitelist"),
-    BLACKLIST("blacklist");
+enum class RoutingMode(val raw: String, val label: String) {
+    CORE("core", "Core"),
+    WHITELIST("whitelist", "Whitelist"),
+    BLACKLIST("blacklist", "Blacklist");
 
     companion object {
-        fun fromRaw(value: String?): RoutingMode {
-            return if (value.equals("blacklist", true) || value.equals("black", true)) {
-                BLACKLIST
-            } else {
-                WHITELIST
+        fun fromRaw(value: String?): RoutingMode =
+            when {
+                value.equals("blacklist", true) || value.equals("black", true) -> BLACKLIST
+                value.equals("whitelist", true) || value.equals("white", true) -> WHITELIST
+                else -> CORE
             }
-        }
     }
 }
 
@@ -34,14 +34,14 @@ data class AppEntry(
 
 data class AppRoutingCache(
     val apps: List<AppEntry> = emptyList(),
-    val mode: RoutingMode = RoutingMode.WHITELIST,
+    val mode: RoutingMode = RoutingMode.CORE,
     val selected: Set<String> = emptySet()
 )
 
 data class AppSyncResult(
     val ok: Boolean,
     val apps: List<AppEntry> = emptyList(),
-    val mode: RoutingMode = RoutingMode.WHITELIST,
+    val mode: RoutingMode = RoutingMode.CORE,
     val selected: Set<String> = emptySet(),
     val added: Int = 0,
     val removed: Int = 0,
@@ -51,8 +51,8 @@ data class AppSyncResult(
 data class AppRoutingUiState(
     val apps: List<AppEntry> = emptyList(),
     val visibleApps: List<AppEntry> = emptyList(),
-    val mode: RoutingMode = RoutingMode.WHITELIST,
-    val appliedMode: RoutingMode = RoutingMode.WHITELIST,
+    val mode: RoutingMode = RoutingMode.CORE,
+    val appliedMode: RoutingMode = RoutingMode.CORE,
     val selected: Set<String> = emptySet(),
     val appliedSelected: Set<String> = emptySet(),
     val filter: AppFilter = AppFilter.ALL,

@@ -30,6 +30,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import io.github.chenyurumeng.aghmanager.model.HealthState
+import io.github.chenyurumeng.aghmanager.model.RoutingMode
 import io.github.chenyurumeng.aghmanager.model.SystemState
 import io.github.chenyurumeng.aghmanager.ui.theme.StatusDegraded
 import io.github.chenyurumeng.aghmanager.ui.theme.StatusError
@@ -98,19 +99,32 @@ fun HomeScreen(viewModel: HomeViewModel, contentPadding: PaddingValues) {
                 running = state.foreign.running
             )
         }
+
         item { SectionHeader("DNS 路由") }
-        item { SettingRow("代理模式", state.box.proxyMode.ifBlank { "Checking…" }) }
+        item { SettingRow("代理模式", state.routingMode.label) }
         item { Divider() }
-        item {
-            val label = if (state.blacklistMode) "黑名单应用" else "白名单应用"
-            val target = if (state.blacklistMode) state.domesticDnsTarget() else state.foreignDnsTarget()
-            SettingRow(label, target)
+
+        when (state.routingMode) {
+            RoutingMode.CORE -> {
+                item {
+                    SettingRow(
+                        "应用分流",
+                        "Core 模式：package.list 不参与代理选择"
+                    )
+                }
+            }
+            RoutingMode.WHITELIST -> {
+                item { SettingRow("白名单应用", state.foreignDnsTarget()) }
+                item { Divider() }
+                item { SettingRow("其它应用", state.domesticDnsTarget()) }
+            }
+            RoutingMode.BLACKLIST -> {
+                item { SettingRow("黑名单应用", state.domesticDnsTarget()) }
+                item { Divider() }
+                item { SettingRow("其它应用", state.foreignDnsTarget()) }
+            }
         }
-        item { Divider() }
-        item {
-            val target = if (state.blacklistMode) state.foreignDnsTarget() else state.domesticDnsTarget()
-            SettingRow("其它应用", target)
-        }
+
         item { Divider() }
         item { SettingRow("Mihomo DNS", if (state.dns.port1053) ":1053 listening" else ":1053 down") }
         item { SectionHeader("监听与控制") }

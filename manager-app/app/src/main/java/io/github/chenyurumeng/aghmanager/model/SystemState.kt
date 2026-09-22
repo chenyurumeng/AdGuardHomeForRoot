@@ -53,9 +53,14 @@ data class SystemState(
     val health: HealthState = HealthState.CHECKING,
     val healthDetail: String = "正在检查 Root 与网络服务状态"
 ) {
+    val routingMode: RoutingMode
+        get() = RoutingMode.fromRaw(box.proxyMode)
+
     val blacklistMode: Boolean
-        get() = box.proxyMode.equals("blacklist", true) ||
-            box.proxyMode.equals("black", true)
+        get() = routingMode == RoutingMode.BLACKLIST
+
+    val coreMode: Boolean
+        get() = routingMode == RoutingMode.CORE
 
     fun domesticDnsTarget(): String {
         if (box.userStopped || !box.running) return "系统 DNS（Box stopped）"

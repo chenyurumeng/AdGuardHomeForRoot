@@ -56,21 +56,16 @@ fun AppRoutingScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     var confirmDiscard by remember { mutableStateOf(false) }
+    val appSelectionEnabled = !state.applying && state.mode != RoutingMode.CORE
 
     fun requestBack() {
         if (state.applying) return
         if (state.dirty) confirmDiscard = true else onBack()
     }
 
-    BackHandler(enabled = state.applying || state.dirty) {
-        requestBack()
-    }
+    BackHandler(enabled = state.applying || state.dirty) { requestBack() }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(contentPadding)
-    ) {
+    Column(modifier = Modifier.fillMaxSize().padding(contentPadding)) {
         TopAppBar(
             title = {
                 Column {
@@ -83,10 +78,7 @@ fun AppRoutingScreen(
                 }
             },
             navigationIcon = {
-                IconButton(
-                    onClick = ::requestBack,
-                    enabled = !state.applying
-                ) {
+                IconButton(onClick = ::requestBack, enabled = !state.applying) {
                     Icon(Icons.Default.ArrowBack, contentDescription = "返回")
                 }
             },
@@ -106,36 +98,33 @@ fun AppRoutingScreen(
             onMode = viewModel::setMode
         )
 
+        if (state.mode == RoutingMode.CORE) {
+            Text(
+                "Core 模式下 package.list 保留但不参与代理选择；切回 Whitelist/Blacklist 后会继续使用原选择。",
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+
         OutlinedTextField(
             value = state.query,
             onValueChange = viewModel::setQuery,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             singleLine = true,
             label = { Text("搜索") },
             placeholder = { Text("应用名 / 包名 / 用户") }
         )
 
-        FilterSelector(
-            filter = state.filter,
-            onFilter = viewModel::setFilter
-        )
-
+        FilterSelector(filter = state.filter, onFilter = viewModel::setFilter)
         RoutingSummary(state)
 
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.weight(1f)
-        ) {
-            items(
-                items = state.visibleApps,
-                key = { it.key }
-            ) { app ->
+        LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
+            items(items = state.visibleApps, key = { it.key }) { app ->
                 AppRow(
                     app = app,
                     checked = app.key in state.selected,
-                    enabled = !state.applying,
+                    enabled = appSelectionEnabled,
                     onToggle = { viewModel.toggleApp(app.key) }
                 )
                 HorizontalDivider()
@@ -157,11 +146,7 @@ fun AppRoutingScreen(
         }
 
         Surface(tonalElevation = 3.dp) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-            ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
                 Button(
                     onClick = viewModel::apply,
                     enabled = state.dirty && !state.applying,
@@ -169,9 +154,7 @@ fun AppRoutingScreen(
                 ) {
                     if (state.applying) {
                         CircularProgressIndicator(
-                            modifier = Modifier
-                                .size(18.dp)
-                                .padding(end = 4.dp),
+                            modifier = Modifier.size(18.dp).padding(end = 4.dp),
                             strokeWidth = 2.dp
                         )
                     }
@@ -198,14 +181,10 @@ fun AppRoutingScreen(
                         confirmDiscard = false
                         onBack()
                     }
-                ) {
-                    Text("放弃并返回")
-                }
+                ) { Text("放弃并返回") }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDiscard = false }) {
-                    Text("继续编辑")
-                }
+                TextButton(onClick = { confirmDiscard = false }) { Text("继续编辑") }
             }
         )
     }
@@ -224,41 +203,29 @@ private fun ModeSelector(
             color = MaterialTheme.colorScheme.primary
         )
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            FilterChip(
-                selected = mode == RoutingMode.WHITELIST,
-                onClick = { onMode(RoutingMode.WHITELIST) },
-                enabled = enabled,
-                label = { Text("Whitelist") },
-                modifier = Modifier.weight(1f)
-            )
-            FilterChip(
-                selected = mode == RoutingMode.BLACKLIST,
-                onClick = { onMode(RoutingMode.BLACKLIST) },
-                enabled = enabled,
-                label = { Text("Blacklist") },
-                modifier = Modifier.weight(1f)
-            )
+            RoutingMode.entries.forEach { value ->
+                FilterChip(
+                    selected = mode == value,
+                    onClick = { onMode(value) },
+                    enabled = enabled,
+                    label = { Text(value.label) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun FilterSelector(
-    filter: AppFilter,
-    onFilter: (AppFilter) -> Unit
-) {
+private fun FilterSelector(filter: AppFilter, onFilter: (AppFilter) -> Unit) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        AppFilter.values().forEach { value ->
+        AppFilter.entries.forEach { value ->
             val label = when (value) {
                 AppFilter.ALL -> "All"
                 AppFilter.USER -> "User"
@@ -276,10 +243,10 @@ private fun FilterSelector(
 
 @Composable
 private fun RoutingSummary(state: AppRoutingUiState) {
-    val semantics = if (state.mode == RoutingMode.WHITELIST) {
-        "选中应用走代理 / Foreign 5592"
-    } else {
-        "选中应用直连 / Domestic 5591"
+    val semantics = when (state.mode) {
+        RoutingMode.CORE -> "Core：应用列表暂不参与代理分流"
+        RoutingMode.WHITELIST -> "选中应用走代理 / Foreign 5592"
+        RoutingMode.BLACKLIST -> "选中应用直连 / Domestic 5591"
     }
 
     val statusColor = if (state.statusIsError) {
@@ -288,9 +255,7 @@ private fun RoutingSummary(state: AppRoutingUiState) {
         MaterialTheme.colorScheme.onSurfaceVariant
     }
 
-    Column(
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-    ) {
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
         Text(
             "已选 " + state.selected.size +
                 " · 显示 " + state.visibleApps.size +
@@ -315,22 +280,12 @@ private fun AppRow(
     enabled: Boolean,
     onToggle: () -> Unit
 ) {
-    val userSuffix = if (app.userId == 0) {
-        ""
-    } else {
-        "  [" + app.userName + " " + app.userId + "]"
-    }
+    val userSuffix = if (app.userId == 0) "" else "  [" + app.userName + " " + app.userId + "]"
 
     ListItem(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = enabled, onClick = onToggle),
+        modifier = Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onToggle),
         headlineContent = {
-            Text(
-                app.label + userSuffix,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
+            Text(app.label + userSuffix, maxLines = 2, overflow = TextOverflow.Ellipsis)
         },
         supportingContent = {
             Text(
@@ -340,11 +295,7 @@ private fun AppRow(
             )
         },
         trailingContent = {
-            Checkbox(
-                checked = checked,
-                onCheckedChange = { onToggle() },
-                enabled = enabled
-            )
+            Checkbox(checked = checked, onCheckedChange = { onToggle() }, enabled = enabled)
         }
     )
 }

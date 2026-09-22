@@ -53,6 +53,7 @@ fun AppNavigation(
     statusRepository: StatusRepository,
     appRepository: AppRepository,
     settingsRepository: SettingsRepository,
+    boxSettingsRepository: BoxSettingsRepository,
     logRepository: LogRepository,
     diagnosticRepository: DiagnosticRepository,
     orchestrator: SystemOrchestrator,
@@ -87,7 +88,7 @@ fun AppNavigation(
                             Text(current.label)
                             if (currentRoute == "home") {
                                 Text(
-                                    "Box & AGH Manager · v0.5.0-rc1",
+                                    "Box & AGH Manager · v0.5.0-rc2",
                                     style = androidx.compose.material3.MaterialTheme.typography.labelSmall
                                 )
                             }
@@ -130,7 +131,13 @@ fun AppNavigation(
                 HomeScreen(viewModel = homeViewModel, contentPadding = innerPadding)
             }
             composable("box") {
-                val vm: BoxViewModel = viewModel(factory = BoxViewModel.Factory(statusRepository, boxController))
+                val vm: BoxViewModel = viewModel(
+                    factory = BoxViewModel.Factory(
+                        statusRepository,
+                        boxController,
+                        boxSettingsRepository
+                    )
+                )
                 LaunchedEffect(vm) { vm.messages.collect { snackbarHostState.showSnackbar(it) } }
                 BoxScreen(
                     viewModel = vm,
