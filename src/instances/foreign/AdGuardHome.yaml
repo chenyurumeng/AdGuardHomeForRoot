@@ -38,10 +38,14 @@ dns:
     - https://dns.quad9.net/dns-query
   upstream_dns_file: ""
   bootstrap_dns:
-    - https://223.5.5.5/dns-query
-    - https://1.12.12.12/dns-query
-    - https://1.1.1.1/dns-query
-    - https://8.8.8.8/dns-query
+    - 1.1.1.1
+    - 1.0.0.1
+    - "2606:4700:4700::1111"
+    - "2606:4700:4700::1001"
+    - 8.8.8.8
+    - 8.8.4.4
+    - "2001:4860:4860::8888"
+    - "2001:4860:4860::8844"
   fallback_dns: []
   upstream_mode: parallel
   fastest_timeout: 1s
