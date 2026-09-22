@@ -221,7 +221,7 @@ class StatusRepository {
         return trimmed.substringAfterLast(':', "").toIntOrNull()
     }
 
-    private fun cleanSetting(value: String): String = value.replace("\\\"", "").trim()
+    private fun cleanSetting(value: String): String = value.filterNot { it == '"' }.trim()
 
     private fun afterEquals(line: String): String {
         val index = line.indexOf('=')
