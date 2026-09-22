@@ -56,7 +56,7 @@ jobs:
             echo "foreign fallback_dns must stay empty"
             exit 1
           fi
-          grep -q '^  bootstrap_dns: \\[\\]$' src/instances/foreign/AdGuardHome.yaml
+          grep -q '^  bootstrap_dns: \[\]$' src/instances/foreign/AdGuardHome.yaml
           grep -q 'function emit_foreign_upstream()' src/customize.sh
           grep -q 'print "    - 127.0.0.1:1053"' src/customize.sh
           if sed -n '/bootstrap_dns:/,/fallback_dns:/p' src/instances/domestic/AdGuardHome.yaml | grep -q 'https://'; then
