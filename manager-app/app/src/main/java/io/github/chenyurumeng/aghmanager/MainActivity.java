@@ -146,9 +146,13 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void renderPagePreservingScroll() {
+        saveCurrentScrollPosition();
+        renderPage();
+    }
+
     private void renderPage() {
         if (content == null) return;
-        saveCurrentScrollPosition();
         content.removeAllViews();
         switch (currentPage) {
             case 1:
@@ -613,7 +617,7 @@ public class MainActivity extends Activity {
                 refreshMs = value;
                 prefs.edit().putLong(KEY_REFRESH_MS, value).apply();
                 scheduleNextRefresh();
-                renderPage();
+                renderPagePreservingScroll();
             });
             LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
                     0, dp(44), 1);
@@ -693,7 +697,7 @@ public class MainActivity extends Activity {
                 refreshing = false;
                 snapshot = parsed;
                 if (currentPage == 0 || currentPage == 1 || currentPage == 2 || currentPage == 4) {
-                    renderPage();
+                    renderPagePreservingScroll();
                 }
             });
         });
