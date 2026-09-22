@@ -34,8 +34,16 @@
         pidBadge: $('pid-badge'),
         version: $('agh-version'),
         logContent: $('log-content'),
-        linkPanel: $('btn-link-panel'),
+        linkDomestic: $('btn-link-domestic'),
+        linkForeign: $('btn-link-foreign'),
         fields: {
+            integration_mode: $('conf-integration_mode'),
+            domestic_enabled: $('conf-domestic_enabled'),
+            domestic_dns_port: $('conf-domestic_dns_port'),
+            domestic_web_port: $('conf-domestic_web_port'),
+            foreign_enabled: $('conf-foreign_enabled'),
+            foreign_dns_port: $('conf-foreign_dns_port'),
+            foreign_web_port: $('conf-foreign_web_port'),
             enable_iptables: $('conf-enable_iptables'),
             block_ipv6_dns: $('conf-block_ipv6_dns'),
             redir_port: $('conf-redir_port'),
@@ -55,42 +63,58 @@
     async function refresh() {
         const marker = "::SPLIT::";
         const cmd = `
-            [ -f ${pidFile} ] && cat ${pidFile} || echo ""; echo "${marker}";
             cat ${settingsPath} 2>/dev/null; echo "${marker}";
-            grep -m1 "address:" ${yamlPath} | sed 's/.*address: *//'; echo "${marker}";
+            [ -f ${ii}/instances/domestic/agh.pid ] && cat ${ii}/instances/domestic/agh.pid || echo ""; echo "${marker}";
+            [ -f ${ii}/instances/foreign/agh.pid ] && cat ${ii}/instances/foreign/agh.pid || echo ""; echo "${marker}";
+            [ -f ${pidFile} ] && cat ${pidFile} || echo ""; echo "${marker}";
             /data/adb/agh/bin/AdGuardHome --version | head -1 | sed 's/.*version //'
         `;
         const res = await exec(cmd);
         const parts = res.s.split(marker).map(p => p.trim());
 
-        const pid = parts[0];
-        const isRunning = pid && /^\d+$/.test(pid);
+        const confText = parts[0] || "";
+        const domesticPid = parts[1] || "";
+        const foreignPid = parts[2] || "";
+        const standalonePid = parts[3] || "";
+        const conf = {};
+        confText.split('\n').forEach(l => {
+            const p = l.indexOf('=');
+            if (p > 0) conf[l.slice(0, p).trim()] = l.slice(p + 1).trim().replace(/^"|"$/g, "");
+        });
+        const dual = conf.integration_mode === "box-dual";
+        const dRunning = /^\d+$/.test(domesticPid);
+        const fRunning = /^\d+$/.test(foreignPid);
+        const sRunning = /^\d+$/.test(standalonePid);
+        const isRunning = dual ? (dRunning || fRunning) : sRunning;
         document.body.className = isRunning ? 'running' : 'stopped';
         currentStatus = isRunning ? "running" : "stopped";
-        elements.statusText.textContent = t(`status.${currentStatus}`);
-        if (isRunning) {
-            elements.pidBadge.textContent = "PID: " + pid;
+        if (dual) {
+            elements.statusText.textContent = `Domestic: ${dRunning ? "UP" : "DOWN"} / Foreign: ${fRunning ? "UP" : "DOWN"}`;
+            elements.pidBadge.textContent = `D:${domesticPid || "-"} F:${foreignPid || "-"}`;
             elements.pidBadge.classList.remove('hidden');
         } else {
-            elements.pidBadge.classList.add('hidden');
+            elements.statusText.textContent = t(`status.${currentStatus}`);
+            if (sRunning) {
+                elements.pidBadge.textContent = "PID: " + standalonePid;
+                elements.pidBadge.classList.remove('hidden');
+            } else {
+                elements.pidBadge.classList.add('hidden');
+            }
         }
 
         if (!window._loaded) {
-            const conf = {};
-            parts[1].split('\n').forEach(l => {
-                const kv = l.split('=');
-                if (kv.length === 2) conf[kv[0].trim()] = kv[1].trim();
-            });
             for (let k in elements.fields) {
                 const el = elements.fields[k];
+                if (!el) continue;
                 if (el.type === 'checkbox') el.checked = conf[k] === 'true';
                 else el.value = conf[k] || "";
             }
             window._loaded = true;
         }
 
-        window._webAddr = parts[2] || "127.0.0.1:3000";
-        elements.version.textContent = (parts[3] || "...");
+        window._webDomestic = "127.0.0.1:" + (conf.domestic_web_port || "3000");
+        window._webForeign = "127.0.0.1:" + (conf.foreign_web_port || "3001");
+        elements.version.textContent = (parts[4] || "...");
     }
 
     $('btn-start').onclick = async () => {
@@ -116,11 +140,11 @@
         showToast(t("toast.saved"));
     };
 
-    elements.linkPanel.onclick = () => {
-        let addr = window._webAddr || "127.0.0.1:3000";
-        if (addr.startsWith(":")) addr = "127.0.0.1" + addr;
-        if (addr.startsWith("0.0.0.0")) addr = addr.replace("0.0.0.0", "127.0.0.1");
-        window.open(`http://${addr}`, '_blank');
+    elements.linkDomestic.onclick = () => {
+        window.open(`http://${window._webDomestic || "127.0.0.1:3000"}`, '_blank');
+    };
+    elements.linkForeign.onclick = () => {
+        window.open(`http://${window._webForeign || "127.0.0.1:3001"}`, '_blank');
     };
 
     document.querySelectorAll('[data-tab]').forEach(b => {
@@ -135,8 +159,10 @@
     let logType = 'bin';
     async function loadLog() {
         elements.logContent.textContent = t("toast.loading");
-        const path = logType === 'bin' ? binLogPath : historyLogPath;
-        const res = await exec(`tail -n 100 ${path}`);
+        const cmd = logType === 'bin'
+            ? `echo "===== DOMESTIC ====="; tail -n 60 ${ii}/instances/domestic/agh.log 2>/dev/null; echo "===== FOREIGN ====="; tail -n 60 ${ii}/instances/foreign/agh.log 2>/dev/null; echo "===== STANDALONE ====="; tail -n 40 ${binLogPath} 2>/dev/null`
+            : `tail -n 100 ${historyLogPath}`;
+        const res = await exec(cmd);
         if (!res.s) {
             elements.logContent.textContent = t("toast.no_logs");
             return;

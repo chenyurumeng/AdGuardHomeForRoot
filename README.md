@@ -20,6 +20,13 @@
 - 该模块的设计初衷是为了提供一个轻量级的广告拦截解决方案，避免了使用 VPN 的复杂性和性能损失。
 - 它可以与其他代理软件（如 [NekoBox](https://github.com/MatsuriDayo/NekoBoxForAndroid)、[FlClash](https://github.com/chen08209/FlClash)、[box for magisk](https://github.com/taamarin/box_for_magisk)、[akashaProxy](https://github.com/akashaProxy/akashaProxy) 等）共存，提供更好的隐私保护和网络安全。
 
+
+## Box 双 DNS 集成（本 Fork）
+
+本 Fork 新增 `integration_mode=box-dual`：一个 AdGuard Home 二进制同时运行 Domestic `:5591` 与 Foreign `:5592` 两个独立实例，由 Box 的 eBPF UID 分流决定应用进入哪一个 DNS 后端。box-dual 模式下本模块不会自行安装 DNS iptables，并带有 listener watchdog 与 Box 故障回退配合。
+
+详细设计、控制命令和故障矩阵见 [docs/box-dual-dns.md](docs/box-dual-dns.md)。
+
 ## 特性
 
 - 可选将本机 DNS 请求转发到本地 AdGuardHome 服务器

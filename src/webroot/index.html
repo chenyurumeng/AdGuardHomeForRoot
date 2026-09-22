@@ -44,9 +44,14 @@
         </button>
     </div>
 
-    <button class="btn btn-secondary btn-full" id="btn-link-panel" data-i18n="button.panel">
-        Open AdGuardHome Panel
-    </button>
+    <div class="btn-row">
+        <button class="btn btn-secondary" id="btn-link-domestic">
+            Domestic AGH
+        </button>
+        <button class="btn btn-secondary" id="btn-link-foreign">
+            Foreign AGH
+        </button>
+    </div>
 
     <div class="tab-btn-row">
         <button class="tab-btn active" data-tab="settings" data-i18n="tab.settings">
@@ -69,6 +74,46 @@
             <h3 data-i18n="settings.title">
                 Traffic Redirection
             </h3>
+
+            <div class="field">
+                <label>Integration Mode</label>
+                <select class="input" id="conf-integration_mode">
+                    <option value="box-dual">box-dual</option>
+                    <option value="standalone">standalone</option>
+                </select>
+            </div>
+
+            <div class="setting-row flex-between">
+                <div>
+                    <div>Domestic AGH</div>
+                    <div class="desc">127.0.0.1:5591 / Web 3000</div>
+                </div>
+                <input type="checkbox" id="conf-domestic_enabled" class="checkbox">
+            </div>
+            <div class="field">
+                <label>Domestic DNS Port</label>
+                <input type="number" class="input" id="conf-domestic_dns_port" placeholder="5591">
+            </div>
+            <div class="field">
+                <label>Domestic Web Port</label>
+                <input type="number" class="input" id="conf-domestic_web_port" placeholder="3000">
+            </div>
+
+            <div class="setting-row flex-between">
+                <div>
+                    <div>Foreign AGH</div>
+                    <div class="desc">127.0.0.1:5592 / Web 3001</div>
+                </div>
+                <input type="checkbox" id="conf-foreign_enabled" class="checkbox">
+            </div>
+            <div class="field">
+                <label>Foreign DNS Port</label>
+                <input type="number" class="input" id="conf-foreign_dns_port" placeholder="5592">
+            </div>
+            <div class="field">
+                <label>Foreign Web Port</label>
+                <input type="number" class="input" id="conf-foreign_web_port" placeholder="3001">
+            </div>
 
             <div class="setting-row flex-between">
                 <div>

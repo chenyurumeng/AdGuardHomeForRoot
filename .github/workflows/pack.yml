@@ -1,10 +1,16 @@
 name: Pack AdGuardHomeForRoot
+# RC1 packaging trigger after Actions enablement
 
 on:
   workflow_dispatch:
   push:
+    branches:
+      - feat/box-dual-dns
     tags:
       - "[0-9]*"
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -21,6 +27,27 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Validate module sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n src/customize.sh
+          bash -n src/service.sh
+          bash -n src/action.sh
+          for f in src/scripts/*.sh; do bash -n "$f"; done
+          node --check src/webroot/assets/index.js
+          ruby -e 'require "yaml"; YAML.load_file("src/bin/AdGuardHome.yaml"); YAML.load_file("src/instances/domestic/AdGuardHome.yaml"); YAML.load_file("src/instances/foreign/AdGuardHome.yaml")'
+          grep -q '^integration_mode=box-dual$' src/settings.conf
+          grep -q 'port: 5591' src/instances/domestic/AdGuardHome.yaml
+          grep -q 'port: 5592' src/instances/foreign/AdGuardHome.yaml
+          grep -q 'https://1.1.1.1/dns-query' src/instances/foreign/AdGuardHome.yaml
+          grep -q 'https://dns.alidns.com/dns-query' src/instances/domestic/AdGuardHome.yaml
+          grep -q 'https://doh.pub/dns-query' src/instances/domestic/AdGuardHome.yaml
+          if grep -qE '^[[:space:]]+- https://(1\.1\.1\.1|1\.0\.0\.1|dns\.google|cloudflare-dns\.com)/' src/instances/domestic/AdGuardHome.yaml; then
+            echo "domestic instance must not use foreign DNS upstreams"
+            exit 1
+          fi
 
       - name: Resolve archive URL
         id: vars
