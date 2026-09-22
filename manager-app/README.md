@@ -4,7 +4,7 @@ Standalone Android manager for the integrated **Box + Mihomo + dual AdGuard Home
 
 ## Version
 
-v0.4.0-rc2
+v0.4.0-rc3
 
 ## Architecture
 
@@ -116,3 +116,12 @@ The Magisk module metadata no longer publishes an upstream `updateJson`, prevent
 - App icons are loaded lazily for visible rows instead of being part of the startup scan.
 - Whitelist/blacklist and checkbox edits are pending UI changes only.
 - Box configuration and `box.service apply-apps` are executed only after the user presses **应用**.
+
+
+## v0.4.0-rc3 flicker-free status refresh
+
+- Periodic status refresh no longer calls `removeAllViews()` or rebuilds the current page.
+- The current view hierarchy and ScrollView stay mounted.
+- Home status chips, process state, AGH state, DNS routing and listener state are updated in place through bound TextViews.
+- Box/AGH/settings pages are not rebuilt by the timer; when the user changes pages they render from the latest in-memory snapshot.
+- Manual page changes remain the only normal path that constructs a new page hierarchy.
