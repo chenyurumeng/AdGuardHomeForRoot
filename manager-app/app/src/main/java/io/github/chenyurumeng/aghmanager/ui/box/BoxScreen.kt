@@ -211,7 +211,7 @@ fun BoxScreen(
             item {
                 ListItem(
                     headlineContent = { Text("订阅管理") },
-                    supportingContent = { Text("添加 / 编辑 HTTP Proxy Provider") },
+                    supportingContent = { Text("添加 / 编辑 / 启停 / 删除 Proxy Provider") },
                     modifier = Modifier.clickable(onClick = onSubscriptions),
                     trailingContent = {
                         androidx.compose.material3.Icon(
@@ -411,8 +411,11 @@ fun BoxScreen(
         MihomoGroupDialog(
             group = selectedGroup,
             delays = mihomo.delays,
+            favorites = mihomo.favorites,
             busy = mihomo.busyAction != null,
             onTest = { mihomoViewModel.testGroup(selectedGroup) },
+            onFastest = { mihomoViewModel.selectFastest(selectedGroup) },
+            onToggleFavorite = mihomoViewModel::toggleFavorite,
             onSelect = { proxy ->
                 selectedGroupName = null
                 mihomoViewModel.select(selectedGroup.name, proxy)
@@ -538,11 +541,22 @@ private fun MihomoGroupRow(
 private fun MihomoGroupDialog(
     group: MihomoGroup,
     delays: Map<String, Int>,
+    favorites: Set<String>,
     busy: Boolean,
     onTest: () -> Unit,
+    onFastest: () -> Unit,
+    onToggleFavorite: (String) -> Unit,
     onSelect: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val sortedNodes = remember(group.all, favorites, delays) {
+        group.all.sortedWith(
+            compareByDescending<String> { it in favorites }
+                .thenBy { delays[it] ?: Int.MAX_VALUE }
+                .thenBy { it.lowercase() }
+        )
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -557,13 +571,32 @@ private fun MihomoGroupDialog(
         },
         text = {
             Column {
-                OutlinedButton(
-                    onClick = onTest,
-                    enabled = !busy && group.all.isNotEmpty(),
-                    modifier = Modifier.fillMaxWidth()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("测速该组全部节点")
+                    OutlinedButton(
+                        onClick = onTest,
+                        enabled = !busy && group.all.isNotEmpty(),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("测速")
+                    }
+                    OutlinedButton(
+                        onClick = onFastest,
+                        enabled = !busy && group.selectable && group.all.isNotEmpty(),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("最快节点")
+                    }
                 }
+
+                Text(
+                    "收藏节点优先显示；有测速结果时再按延迟排序。",
+                    modifier = Modifier.padding(top = 6.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
                 LazyColumn(
                     modifier = Modifier
@@ -571,26 +604,33 @@ private fun MihomoGroupDialog(
                         .heightIn(max = 420.dp)
                         .padding(top = 8.dp)
                 ) {
-                    items(group.all, key = { it }) { proxy ->
+                    items(sortedNodes, key = { it }) { proxy ->
                         val selected = proxy == group.now
+                        val favorite = proxy in favorites
                         ListItem(
                             modifier = Modifier.clickable(
                                 enabled = !busy && group.selectable
                             ) {
                                 onSelect(proxy)
                             },
-                            headlineContent = { Text(proxy) },
+                            headlineContent = {
+                                Text((if (favorite) "★ " else "") + proxy)
+                            },
                             supportingContent = {
                                 val delay = delays[proxy]
-                                if (delay != null) Text(delay.toString() + " ms")
+                                Text(
+                                    listOfNotNull(
+                                        delay?.let { it.toString() + " ms" },
+                                        if (selected) "当前节点" else null
+                                    ).joinToString(" · ").ifBlank { group.type }
+                                )
                             },
                             trailingContent = {
-                                if (selected) {
-                                    Text(
-                                        "当前",
-                                        color = MaterialTheme.colorScheme.primary,
-                                        style = MaterialTheme.typography.labelMedium
-                                    )
+                                TextButton(
+                                    onClick = { onToggleFavorite(proxy) },
+                                    enabled = !busy
+                                ) {
+                                    Text(if (favorite) "取消收藏" else "收藏")
                                 }
                             }
                         )
@@ -598,7 +638,7 @@ private fun MihomoGroupDialog(
                 }
                 if (!group.selectable) {
                     Text(
-                        "该组类型为 " + group.type + "，本页只提供测速；节点固定操作仅对 Selector 开放。",
+                        "该组类型为 " + group.type + "，本页只提供测速和收藏；节点固定操作仅对 Selector 开放。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

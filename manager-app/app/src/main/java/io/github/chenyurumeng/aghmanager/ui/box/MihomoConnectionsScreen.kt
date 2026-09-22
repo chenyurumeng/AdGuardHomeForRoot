@@ -14,7 +14,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -22,6 +21,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -44,6 +44,19 @@ import io.github.chenyurumeng.aghmanager.model.MihomoConnection
 import io.github.chenyurumeng.aghmanager.model.MihomoRuntimeUiState
 import kotlinx.coroutines.delay
 
+private enum class ConnectionFilter(val label: String) {
+    ALL("全部"),
+    PROXY("代理"),
+    DIRECT("直连")
+}
+
+private data class AppAggregate(
+    val label: String,
+    val count: Int,
+    val upload: Long,
+    val download: Long
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MihomoConnectionsScreen(
@@ -54,7 +67,49 @@ fun MihomoConnectionsScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
     val listState = rememberLazyListState()
+
     var confirmCloseAll by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    var filter by remember { mutableStateOf(ConnectionFilter.ALL) }
+    var groupByApp by remember { mutableStateOf(false) }
+
+    val filteredConnections = remember(state.connections, query, filter) {
+        val needle = query.trim().lowercase()
+        state.connections.filter { connection ->
+            val matchesFilter = when (filter) {
+                ConnectionFilter.ALL -> true
+                ConnectionFilter.PROXY -> !connection.direct
+                ConnectionFilter.DIRECT -> connection.direct
+            }
+            val matchesQuery = needle.isBlank() ||
+                connection.host.lowercase().contains(needle) ||
+                connection.destinationIp.lowercase().contains(needle) ||
+                connection.processLabel.lowercase().contains(needle) ||
+                connection.uid.lowercase().contains(needle) ||
+                connection.rule.lowercase().contains(needle) ||
+                connection.rulePayload.lowercase().contains(needle) ||
+                connection.chains.any { it.lowercase().contains(needle) }
+
+            matchesFilter && matchesQuery
+        }
+    }
+
+    val aggregates = remember(filteredConnections) {
+        filteredConnections
+            .groupBy { it.processLabel }
+            .map { (label, items) ->
+                AppAggregate(
+                    label = label,
+                    count = items.size,
+                    upload = items.sumOf { it.upload },
+                    download = items.sumOf { it.download }
+                )
+            }
+            .sortedWith(
+                compareByDescending<AppAggregate> { it.download + it.upload }
+                    .thenBy { it.label.lowercase() }
+            )
+    }
 
     BackHandler(onBack = onBack)
 
@@ -79,25 +134,56 @@ fun MihomoConnectionsScreen(
 
         RuntimeSummary(state)
 
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+            singleLine = true,
+            label = { Text("搜索连接") },
+            placeholder = { Text("域名 / IP / 应用 / UID / 规则 / 代理链") }
+        )
+
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            ConnectionFilter.entries.forEach { item ->
+                OutlinedButton(
+                    onClick = { filter = item },
+                    enabled = filter != item,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(item.label)
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            OutlinedButton(
+                onClick = { groupByApp = !groupByApp },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(if (groupByApp) "显示连接明细" else "按应用聚合")
+            }
             OutlinedButton(
                 onClick = { confirmCloseAll = true },
                 enabled = state.connections.isNotEmpty() && state.busyAction == null,
                 modifier = Modifier.weight(1f)
             ) {
-                Text("关闭全部连接")
-            }
-            Button(
-                onClick = { /* 轮询会自动刷新 */ },
-                enabled = false,
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("2 秒实时刷新")
+                Text("关闭全部")
             }
         }
+
+        Text(
+            "显示 " + filteredConnections.size + " / " + state.connections.size +
+                " · 2 秒实时刷新",
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
 
         if (state.error.isNotBlank()) {
             Text(
@@ -112,22 +198,36 @@ fun MihomoConnectionsScreen(
             state = listState,
             modifier = Modifier.weight(1f)
         ) {
-            items(
-                items = state.connections,
-                key = { it.id.ifBlank { it.destinationLabel + it.start } }
-            ) { connection ->
-                ConnectionRow(
-                    connection = connection,
-                    enabled = state.busyAction == null,
-                    onClose = { viewModel.closeConnection(connection.id) }
-                )
-                HorizontalDivider()
+            if (groupByApp) {
+                items(
+                    items = aggregates,
+                    key = { "app:" + it.label }
+                ) { aggregate ->
+                    AppAggregateRow(aggregate)
+                    HorizontalDivider()
+                }
+            } else {
+                items(
+                    items = filteredConnections,
+                    key = { it.id.ifBlank { it.destinationLabel + it.start } }
+                ) { connection ->
+                    ConnectionRow(
+                        connection = connection,
+                        enabled = state.busyAction == null,
+                        onClose = { viewModel.closeConnection(connection.id) }
+                    )
+                    HorizontalDivider()
+                }
             }
 
-            if (!state.loading && state.connections.isEmpty()) {
+            if (!state.loading && filteredConnections.isEmpty()) {
                 item {
                     Text(
-                        "当前没有活动连接。",
+                        if (state.connections.isEmpty()) {
+                            "当前没有活动连接。"
+                        } else {
+                            "没有符合当前搜索或筛选条件的连接。"
+                        },
                         modifier = Modifier.padding(24.dp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -202,6 +302,26 @@ private fun RuntimeSummary(state: MihomoRuntimeUiState) {
 }
 
 @Composable
+private fun AppAggregateRow(aggregate: AppAggregate) {
+    ListItem(
+        headlineContent = {
+            Text(
+                aggregate.label,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        },
+        supportingContent = {
+            Text(
+                aggregate.count.toString() + " 个连接 · ↓ " +
+                    formatBytes(aggregate.download) + " · ↑ " +
+                    formatBytes(aggregate.upload)
+            )
+        }
+    )
+}
+
+@Composable
 private fun ConnectionRow(
     connection: MihomoConnection,
     enabled: Boolean,
@@ -217,20 +337,16 @@ private fun ConnectionRow(
         },
         supportingContent = {
             Column {
-                val process = connection.process.ifBlank {
-                    connection.processPath.substringAfterLast('/').ifBlank {
-                        if (connection.uid.isBlank()) "未知进程" else "UID " + connection.uid
-                    }
-                }
                 Text(
-                    process + " · " + connection.network.uppercase(),
+                    connection.processLabel + " · " + connection.network.uppercase(),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     listOf(
                         connection.rule +
-                            if (connection.rulePayload.isBlank()) "" else " (" + connection.rulePayload + ")",
+                            if (connection.rulePayload.isBlank()) "" else
+                                " (" + connection.rulePayload + ")",
                         connection.chains.joinToString(" → ")
                     ).filter { it.isNotBlank() }.joinToString(" · "),
                     maxLines = 2,

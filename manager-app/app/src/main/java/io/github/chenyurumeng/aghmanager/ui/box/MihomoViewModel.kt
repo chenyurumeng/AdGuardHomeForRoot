@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import io.github.chenyurumeng.aghmanager.data.MihomoApiRepository
+import io.github.chenyurumeng.aghmanager.data.MihomoPreferencesRepository
 import io.github.chenyurumeng.aghmanager.model.MihomoGroup
 import io.github.chenyurumeng.aghmanager.model.MihomoQuickUiState
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -13,9 +14,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class MihomoViewModel(
-    private val repository: MihomoApiRepository
+    private val repository: MihomoApiRepository,
+    private val preferencesRepository: MihomoPreferencesRepository
 ) : ViewModel() {
-    private val _state = MutableStateFlow(MihomoQuickUiState())
+    private val _state = MutableStateFlow(
+        MihomoQuickUiState(favorites = preferencesRepository.favorites())
+    )
     val state = _state.asStateFlow()
 
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 3)
@@ -36,6 +40,12 @@ class MihomoViewModel(
         }
     }
 
+    fun toggleFavorite(node: String) {
+        _state.value = _state.value.copy(
+            favorites = preferencesRepository.toggleFavorite(node)
+        )
+    }
+
     fun testGroup(group: MihomoGroup) {
         runAction("正在测速 " + group.name + "…") {
             repository.testGroup(
@@ -47,6 +57,44 @@ class MihomoViewModel(
                 )
                 _messages.emit(group.name + " 测速完成 · " + delays.size + " 项")
             }
+        }
+    }
+
+    fun selectFastest(group: MihomoGroup) {
+        if (!group.selectable) {
+            _messages.tryEmit("该策略组不是 Selector，不能固定节点")
+            return
+        }
+
+        runAction("正在测速并选择最快节点…") {
+            repository.testGroup(
+                groupName = group.name,
+                testUrl = group.testUrl.ifBlank { "https://cp.cloudflare.com" }
+            ).fold(
+                onSuccess = { delays ->
+                    _state.value = _state.value.copy(
+                        delays = _state.value.delays + delays
+                    )
+                    val fastest = group.all
+                        .asSequence()
+                        .filter { it !in setOf("DIRECT", "REJECT", "REJECT-DROP", "PASS") }
+                        .mapNotNull { node -> delays[node]?.takeIf { it > 0 }?.let { node to it } }
+                        .minByOrNull { it.second }
+
+                    if (fastest == null) {
+                        Result.failure(IllegalStateException("没有获得有效节点延迟"))
+                    } else {
+                        repository.selectProxy(group.name, fastest.first)
+                            .onSuccess {
+                                refreshInternal(showLoading = false)
+                                _messages.emit(
+                                    "已切换最快节点：" + fastest.first + " · " + fastest.second + " ms"
+                                )
+                            }
+                    }
+                },
+                onFailure = { Result.failure(it) }
+            )
         }
     }
 
@@ -130,6 +178,7 @@ class MihomoViewModel(
                     authenticated = snapshot.authenticated,
                     groups = snapshot.groups,
                     providers = snapshot.providers,
+                    favorites = preferencesRepository.favorites(),
                     error = ""
                 )
             }
@@ -143,12 +192,13 @@ class MihomoViewModel(
     }
 
     class Factory(
-        private val repository: MihomoApiRepository
+        private val repository: MihomoApiRepository,
+        private val preferencesRepository: MihomoPreferencesRepository
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(MihomoViewModel::class.java)) {
-                return MihomoViewModel(repository) as T
+                return MihomoViewModel(repository, preferencesRepository) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class: " + modelClass.name)
         }

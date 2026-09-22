@@ -1,8 +1,10 @@
 package io.github.chenyurumeng.aghmanager.ui.box
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -11,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
@@ -21,7 +24,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -47,7 +52,14 @@ fun MihomoSubscriptionsScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<MihomoSubscription?>(null) }
+    var deleting by remember { mutableStateOf<MihomoSubscription?>(null) }
     var adding by remember { mutableStateOf(false) }
+    var sortByName by remember { mutableStateOf(false) }
+
+    val displayed = remember(state.subscriptions, sortByName) {
+        if (sortByName) state.subscriptions.sortedBy { it.name.lowercase() }
+        else state.subscriptions
+    }
 
     BackHandler { if (!state.saving) onBack() }
 
@@ -70,11 +82,27 @@ fun MihomoSubscriptionsScreen(
         )
 
         Text(
-            "直接管理 Mihomo config.yaml 的 HTTP Proxy Provider。保存前会校验配置，运行中热重载，失败自动回滚；不会开启 Box 自动订阅更新。",
+            "支持添加、编辑、停用、启用和删除 HTTP Proxy Provider。所有配置变更均先经 Mihomo 校验；运行中热重载，失败自动回滚。",
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = { sortByName = false },
+                enabled = sortByName,
+                modifier = Modifier.weight(1f)
+            ) { Text("配置顺序") }
+            OutlinedButton(
+                onClick = { sortByName = true },
+                enabled = !sortByName,
+                modifier = Modifier.weight(1f)
+            ) { Text("按名称") }
+        }
 
         if (state.error.isNotBlank()) {
             Text(
@@ -86,9 +114,14 @@ fun MihomoSubscriptionsScreen(
         }
 
         LazyColumn(modifier = Modifier.weight(1f)) {
-            items(state.subscriptions, key = { it.name }) { subscription ->
+            items(displayed, key = { it.name }) { subscription ->
                 ListItem(
-                    headlineContent = { Text(subscription.name) },
+                    headlineContent = {
+                        Text(
+                            subscription.name +
+                                if (subscription.enabled) "" else " · 已停用"
+                        )
+                    },
                     supportingContent = {
                         Column {
                             Text(
@@ -104,12 +137,29 @@ fun MihomoSubscriptionsScreen(
                             )
                         }
                     },
-                    trailingContent = {
-                        IconButton(
-                            onClick = { editing = subscription },
+                    leadingContent = {
+                        Switch(
+                            checked = subscription.enabled,
+                            onCheckedChange = {
+                                viewModel.setEnabled(subscription.name, it)
+                            },
                             enabled = subscription.editable && !state.saving
-                        ) {
-                            Icon(Icons.Default.Edit, contentDescription = "编辑 " + subscription.name)
+                        )
+                    },
+                    trailingContent = {
+                        Row {
+                            IconButton(
+                                onClick = { editing = subscription },
+                                enabled = subscription.editable && !state.saving
+                            ) {
+                                Icon(Icons.Default.Edit, contentDescription = "编辑 " + subscription.name)
+                            }
+                            IconButton(
+                                onClick = { deleting = subscription },
+                                enabled = !state.saving
+                            ) {
+                                Icon(Icons.Default.Delete, contentDescription = "删除 " + subscription.name)
+                            }
                         }
                     }
                 )
@@ -119,7 +169,7 @@ fun MihomoSubscriptionsScreen(
             if (!state.loading && state.subscriptions.isEmpty()) {
                 item {
                     Text(
-                        "当前没有可管理的 HTTP Proxy Provider。",
+                        "当前没有可管理的 Proxy Provider。",
                         modifier = Modifier.padding(24.dp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -132,7 +182,7 @@ fun MihomoSubscriptionsScreen(
             enabled = !state.saving,
             modifier = Modifier.fillMaxWidth().padding(16.dp)
         ) {
-            Text(if (state.saving) "正在保存…" else "添加订阅")
+            Text(if (state.saving) "正在应用配置…" else "添加订阅")
         }
     }
 
@@ -158,6 +208,33 @@ fun MihomoSubscriptionsScreen(
                 viewModel.save(target.name, name, url, interval) { success ->
                     if (success) editing = null
                 }
+            }
+        )
+    }
+
+    deleting?.let { target ->
+        AlertDialog(
+            onDismissRequest = { if (!state.saving) deleting = null },
+            title = { Text("删除 " + target.name + "？") },
+            text = {
+                Text(
+                    "将从 config.yaml 删除该 Provider 配置。若其它配置仍引用它，Mihomo 校验会阻止删除并保留原配置。订阅缓存文件不会自动删除。"
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        deleting = null
+                        viewModel.delete(target.name)
+                    },
+                    enabled = !state.saving
+                ) { Text("删除") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { deleting = null },
+                    enabled = !state.saving
+                ) { Text("取消") }
             }
         )
     }
@@ -212,7 +289,7 @@ private fun SubscriptionEditorDialog(
                     supportingText = { Text("300–604800；默认 86400") }
                 )
                 Text(
-                    "订阅 URL 不会出现在日志或诊断报告中。",
+                    "订阅 URL 不会出现在日志或诊断报告中。编辑停用中的订阅不会自动启用它。",
                     modifier = Modifier.padding(top = 10.dp),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -226,7 +303,7 @@ private fun SubscriptionEditorDialog(
                 },
                 enabled = !saving && name.isNotBlank() && url.isNotBlank()
             ) {
-                Text(if (saving) "保存中…" else "保存并热重载")
+                Text(if (saving) "保存中…" else "保存")
             }
         },
         dismissButton = {

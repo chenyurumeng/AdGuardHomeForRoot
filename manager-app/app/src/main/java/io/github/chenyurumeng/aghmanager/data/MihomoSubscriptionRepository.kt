@@ -14,19 +14,13 @@ class MihomoSubscriptionRepository {
         private const val BOX_TOOL = "/data/adb/box/scripts/box.tool"
         private const val STATE_DIR = "/data/adb/box/run/state"
 
+        private const val DISABLED_PREFIX = "# agh-manager-disabled-provider:"
+        private const val DISABLED_END = "# agh-manager-disabled-end"
         private val NAME_REGEX = Regex("[A-Za-z0-9._-]{1,64}")
     }
 
-    suspend fun load(): Result<List<MihomoSubscription>> {
-        val result = RootShell.exec("cat " + CONFIG + " 2>/dev/null", 20)
-        if (!result.ok || result.stdout.isBlank()) {
-            return Result.failure(IllegalStateException("无法读取 Mihomo config.yaml"))
-        }
-
-        return runCatching {
-            parseProviders(result.stdout).map { it.subscription }
-        }
-    }
+    suspend fun load(): Result<List<MihomoSubscription>> =
+        readContent().mapCatching { parseProviders(it).map(ProviderBlock::subscription) }
 
     suspend fun save(
         originalName: String?,
@@ -41,12 +35,7 @@ class MihomoSubscriptionRepository {
             return Result.failure(IllegalArgumentException(it))
         }
 
-        val read = RootShell.exec("cat " + CONFIG + " 2>/dev/null", 20)
-        if (!read.ok || read.stdout.isBlank()) {
-            return Result.failure(IllegalStateException("无法读取 Mihomo config.yaml"))
-        }
-
-        val original = read.stdout
+        val original = readContent().getOrElse { return Result.failure(it) }
         val blocks = parseProviders(original)
         val existing = originalName?.let { target ->
             blocks.firstOrNull { it.subscription.name == target }
@@ -75,9 +64,55 @@ class MihomoSubscriptionRepository {
             url = normalizedUrl,
             intervalSeconds = intervalSeconds
         )
+        return applyContent(newContent)
+    }
 
+    suspend fun delete(name: String): Result<Unit> {
+        val original = readContent().getOrElse { return Result.failure(it) }
+        val block = parseProviders(original).firstOrNull { it.subscription.name == name }
+            ?: return Result.failure(IllegalStateException("目标 Provider 已不存在"))
+
+        val lines = original.split('\n').toMutableList()
+        for (index in block.endExclusive - 1 downTo block.start) {
+            lines.removeAt(index)
+        }
+        return applyContent(lines.joinToString("\n"))
+    }
+
+    suspend fun setEnabled(name: String, enabled: Boolean): Result<Unit> {
+        val original = readContent().getOrElse { return Result.failure(it) }
+        val block = parseProviders(original).firstOrNull { it.subscription.name == name }
+            ?: return Result.failure(IllegalStateException("目标 Provider 已不存在"))
+
+        if (block.subscription.enabled == enabled) return Result.success(Unit)
+
+        val lines = original.split('\n').toMutableList()
+        val replacement = if (enabled) {
+            block.rawLines
+        } else {
+            disableLines(name, block.rawLines)
+        }
+
+        for (index in block.endExclusive - 1 downTo block.start) {
+            lines.removeAt(index)
+        }
+        lines.addAll(block.start, replacement)
+
+        return applyContent(lines.joinToString("\n"))
+    }
+
+    private suspend fun readContent(): Result<String> {
+        val result = RootShell.exec("cat " + CONFIG + " 2>/dev/null", 20)
+        return if (result.ok && result.stdout.isNotBlank()) {
+            Result.success(result.stdout)
+        } else {
+            Result.failure(IllegalStateException("无法读取 Mihomo config.yaml"))
+        }
+    }
+
+    private suspend fun applyContent(content: String): Result<Unit> {
         val encoded = Base64.getEncoder().encodeToString(
-            newContent.toByteArray(StandardCharsets.UTF_8)
+            content.toByteArray(StandardCharsets.UTF_8)
         )
         val sh = '$'
         val command = buildString {
@@ -179,7 +214,7 @@ class MihomoSubscriptionRepository {
                     when (result.exitCode) {
                         53 -> "Mihomo 配置校验失败，原配置未修改"
                         55 -> "Mihomo reload 失败，已恢复原配置"
-                        else -> "订阅保存失败（exit=" + result.exitCode + "）"
+                        else -> "订阅配置操作失败（exit=" + result.exitCode + "）"
                     }
                 )
             )
@@ -220,49 +255,110 @@ class MihomoSubscriptionRepository {
 
         while (index < sectionEnd) {
             val line = lines[index]
-            if (leadingSpaces(line) == 2 && line.trim().endsWith(":") && !line.trimStart().startsWith("#")) {
-                val name = unquote(line.trim().removeSuffix(":").trim())
+
+            if (line.trimStart().startsWith(DISABLED_PREFIX)) {
+                val markerName = line.substringAfter(DISABLED_PREFIX).trim()
                 val start = index
                 var end = index + 1
-                while (end < sectionEnd && leadingSpaces(lines[end]) != 2) end++
-                val blockLines = lines.subList(start, end)
-
-                var type = ""
-                var url = ""
-                var path = ""
-                var interval = 86_400
-                blockLines.drop(1).forEach { child ->
-                    if (leadingSpaces(child) != 4 || child.trimStart().startsWith("#")) return@forEach
-                    val trimmed = child.trim()
-                    when {
-                        trimmed.startsWith("type:") -> type = unquote(trimmed.substringAfter(':').trim())
-                        trimmed.startsWith("url:") -> url = unquote(trimmed.substringAfter(':').trim())
-                        trimmed.startsWith("path:") -> path = unquote(trimmed.substringAfter(':').trim())
-                        trimmed.startsWith("interval:") ->
-                            interval = trimmed.substringAfter(':').trim().toIntOrNull() ?: 86_400
+                val raw = mutableListOf<String>()
+                while (end < sectionEnd && lines[end].trim() != DISABLED_END) {
+                    val commented = lines[end]
+                    raw += when {
+                        commented.startsWith("# ") -> commented.removePrefix("# ")
+                        commented.startsWith("#") -> commented.removePrefix("#")
+                        else -> commented
                     }
+                    end++
                 }
+                if (end < sectionEnd && lines[end].trim() == DISABLED_END) end++
 
-                if (name.isNotBlank()) {
-                    blocks += ProviderBlock(
-                        start = start,
-                        endExclusive = end,
-                        subscription = MihomoSubscription(
-                            name = name,
-                            url = url,
-                            intervalSeconds = interval,
-                            path = path,
-                            type = type.ifBlank { "unknown" },
-                            editable = type.equals("http", true) && url.isNotBlank()
-                        )
-                    )
+                parseSubscription(raw, enabled = false, fallbackName = markerName)?.let {
+                    blocks += ProviderBlock(start, end, raw, it)
                 }
                 index = end
-            } else {
-                index++
+                continue
+            }
+
+            if (
+                leadingSpaces(line) == 2 &&
+                line.trim().endsWith(":") &&
+                !line.trimStart().startsWith("#")
+            ) {
+                val start = index
+                var end = index + 1
+                while (end < sectionEnd) {
+                    val candidate = lines[end]
+                    if (
+                        leadingSpaces(candidate) == 2 &&
+                        candidate.trim().endsWith(":") &&
+                        !candidate.trimStart().startsWith("#")
+                    ) break
+                    if (candidate.trimStart().startsWith(DISABLED_PREFIX)) break
+                    end++
+                }
+
+                val raw = lines.subList(start, end).toList()
+                parseSubscription(raw, enabled = true, fallbackName = "")?.let {
+                    blocks += ProviderBlock(start, end, raw, it)
+                }
+                index = end
+                continue
+            }
+
+            index++
+        }
+
+        return blocks.sortedBy { it.start }
+    }
+
+    private fun parseSubscription(
+        blockLines: List<String>,
+        enabled: Boolean,
+        fallbackName: String
+    ): MihomoSubscription? {
+        if (blockLines.isEmpty()) return null
+
+        val header = blockLines.firstOrNull {
+            leadingSpaces(it) == 2 && it.trim().endsWith(":")
+        }
+        val name = header
+            ?.trim()
+            ?.removeSuffix(":")
+            ?.let(::unquote)
+            ?.ifBlank { fallbackName }
+            ?: fallbackName
+
+        if (name.isBlank()) return null
+
+        var type = ""
+        var url = ""
+        var path = ""
+        var interval = 86_400
+
+        blockLines.drop(1).forEach { child ->
+            if (leadingSpaces(child) != 4 || child.trimStart().startsWith("#")) return@forEach
+            val trimmed = child.trim()
+            when {
+                trimmed.startsWith("type:") ->
+                    type = unquote(trimmed.substringAfter(':').trim())
+                trimmed.startsWith("url:") ->
+                    url = unquote(trimmed.substringAfter(':').trim())
+                trimmed.startsWith("path:") ->
+                    path = unquote(trimmed.substringAfter(':').trim())
+                trimmed.startsWith("interval:") ->
+                    interval = trimmed.substringAfter(':').trim().toIntOrNull() ?: 86_400
             }
         }
-        return blocks
+
+        return MihomoSubscription(
+            name = name,
+            url = url,
+            intervalSeconds = interval,
+            path = path,
+            type = type.ifBlank { "unknown" },
+            editable = type.equals("http", true) && url.isNotBlank(),
+            enabled = enabled
+        )
     }
 
     private fun patchProvider(
@@ -279,7 +375,7 @@ class MihomoSubscriptionRepository {
         }
 
         if (existing != null) {
-            val block = lines.subList(existing.start, existing.endExclusive).toMutableList()
+            val block = existing.rawLines.toMutableList()
             var urlFound = false
             var intervalFound = false
 
@@ -309,10 +405,16 @@ class MihomoSubscriptionRepository {
                 block.add(insertIndex, "    interval: " + intervalSeconds)
             }
 
+            val replacement = if (existing.subscription.enabled) {
+                block
+            } else {
+                disableLines(name, block)
+            }
+
             for (index in existing.endExclusive - 1 downTo existing.start) {
                 lines.removeAt(index)
             }
-            lines.addAll(existing.start, block)
+            lines.addAll(existing.start, replacement)
         } else {
             val path = "./proxy_provider/" + name + ".yaml"
             val block = renderProvider(name, url, path, intervalSeconds)
@@ -322,6 +424,13 @@ class MihomoSubscriptionRepository {
 
         return lines.joinToString("\n")
     }
+
+    private fun disableLines(name: String, rawLines: List<String>): List<String> =
+        buildList {
+            add(DISABLED_PREFIX + " " + name)
+            rawLines.forEach { add("# " + it) }
+            add(DISABLED_END)
+        }
 
     private fun renderProvider(
         name: String,
@@ -373,6 +482,7 @@ class MihomoSubscriptionRepository {
     private data class ProviderBlock(
         val start: Int,
         val endExclusive: Int,
+        val rawLines: List<String>,
         val subscription: MihomoSubscription
     )
 }

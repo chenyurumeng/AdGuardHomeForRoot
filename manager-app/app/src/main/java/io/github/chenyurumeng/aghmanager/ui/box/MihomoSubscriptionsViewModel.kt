@@ -54,14 +54,52 @@ class MihomoSubscriptionsViewModel(
         intervalSeconds: Int,
         onComplete: (Boolean) -> Unit
     ) {
+        mutate(
+            action = {
+                repository.save(originalName, name, url, intervalSeconds)
+            },
+            successMessage = if (originalName == null) "订阅已添加" else "订阅已保存",
+            afterSuccess = {
+                val current = _state.value.subscriptions.firstOrNull { it.name == originalName }
+                if (originalName == null || current?.enabled != false) {
+                    apiRepository.updateProvider(name)
+                }
+            },
+            onComplete = onComplete
+        )
+    }
+
+    fun setEnabled(name: String, enabled: Boolean) {
+        mutate(
+            action = { repository.setEnabled(name, enabled) },
+            successMessage = if (enabled) "订阅已启用" else "订阅已停用",
+            afterSuccess = {
+                if (enabled) apiRepository.updateProvider(name)
+            }
+        )
+    }
+
+    fun delete(name: String) {
+        mutate(
+            action = { repository.delete(name) },
+            successMessage = "订阅已删除"
+        )
+    }
+
+    private fun mutate(
+        action: suspend () -> Result<Unit>,
+        successMessage: String,
+        afterSuccess: suspend () -> Unit = {},
+        onComplete: (Boolean) -> Unit = {}
+    ) {
         if (_state.value.saving) return
 
         viewModelScope.launch {
             _state.value = _state.value.copy(saving = true, error = "")
-            repository.save(originalName, name, url, intervalSeconds)
+            action()
                 .onSuccess {
-                    apiRepository.updateProvider(name)
-                    _messages.emit(if (originalName == null) "订阅已添加" else "订阅已保存")
+                    afterSuccess()
+                    _messages.emit(successMessage)
                     _state.value = _state.value.copy(saving = false)
                     refresh()
                     onComplete(true)
@@ -69,9 +107,9 @@ class MihomoSubscriptionsViewModel(
                 .onFailure {
                     _state.value = _state.value.copy(
                         saving = false,
-                        error = it.message ?: "订阅保存失败"
+                        error = it.message ?: "订阅操作失败"
                     )
-                    _messages.emit(it.message ?: "订阅保存失败")
+                    _messages.emit(it.message ?: "订阅操作失败")
                     onComplete(false)
                 }
         }

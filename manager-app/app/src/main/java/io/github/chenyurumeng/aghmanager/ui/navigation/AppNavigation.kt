@@ -55,6 +55,7 @@ fun AppNavigation(
     settingsRepository: SettingsRepository,
     boxSettingsRepository: BoxSettingsRepository,
     mihomoApiRepository: MihomoApiRepository,
+    mihomoPreferencesRepository: MihomoPreferencesRepository,
     mihomoSubscriptionRepository: MihomoSubscriptionRepository,
     logRepository: LogRepository,
     diagnosticRepository: DiagnosticRepository,
@@ -92,7 +93,7 @@ fun AppNavigation(
                             Text(current.label)
                             if (currentRoute == "home") {
                                 Text(
-                                    "Box & AGH Manager · v0.5.0-rc4",
+                                    "Box & AGH Manager · v0.5.0-rc5",
                                     style = androidx.compose.material3.MaterialTheme.typography.labelSmall
                                 )
                             }
@@ -143,7 +144,10 @@ fun AppNavigation(
                     )
                 )
                 val mihomoVm: MihomoViewModel = viewModel(
-                    factory = MihomoViewModel.Factory(mihomoApiRepository)
+                    factory = MihomoViewModel.Factory(
+                        mihomoApiRepository,
+                        mihomoPreferencesRepository
+                    )
                 )
                 LaunchedEffect(vm) { vm.messages.collect { snackbarHostState.showSnackbar(it) } }
                 LaunchedEffect(mihomoVm) {

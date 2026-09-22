@@ -18,6 +18,7 @@ class ComposeMainActivity : ComponentActivity() {
     private val settingsRepository by lazy { SettingsRepository(applicationContext) }
     private val boxSettingsRepository = BoxSettingsRepository()
     private val mihomoApiRepository = MihomoApiRepository()
+    private val mihomoPreferencesRepository by lazy { MihomoPreferencesRepository(applicationContext) }
     private val mihomoSubscriptionRepository = MihomoSubscriptionRepository()
     private val logRepository = LogRepository()
     private val diagnosticRepository = DiagnosticRepository()
@@ -37,6 +38,7 @@ class ComposeMainActivity : ComponentActivity() {
                     settingsRepository = settingsRepository,
                     boxSettingsRepository = boxSettingsRepository,
                     mihomoApiRepository = mihomoApiRepository,
+                    mihomoPreferencesRepository = mihomoPreferencesRepository,
                     mihomoSubscriptionRepository = mihomoSubscriptionRepository,
                     logRepository = logRepository,
                     diagnosticRepository = diagnosticRepository,

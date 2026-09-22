@@ -35,6 +35,7 @@ data class MihomoQuickUiState(
     val groups: List<MihomoGroup> = emptyList(),
     val providers: List<MihomoProvider> = emptyList(),
     val delays: Map<String, Int> = emptyMap(),
+    val favorites: Set<String> = emptySet(),
     val busyAction: String? = null,
     val error: String = ""
 )
@@ -62,6 +63,16 @@ data class MihomoConnection(
             val base = host.ifBlank { destinationIp.ifBlank { "unknown" } }
             return if (destinationPort.isBlank()) base else base + ":" + destinationPort
         }
+
+    val processLabel: String
+        get() = process.ifBlank {
+            processPath.substringAfterLast('/').ifBlank {
+                if (uid.isBlank()) "未知进程" else "UID " + uid
+            }
+        }
+
+    val direct: Boolean
+        get() = chains.any { it.equals("DIRECT", true) }
 }
 
 data class MihomoProcessMetrics(
@@ -95,7 +106,8 @@ data class MihomoSubscription(
     val intervalSeconds: Int = 86_400,
     val path: String = "",
     val type: String = "http",
-    val editable: Boolean = true
+    val editable: Boolean = true,
+    val enabled: Boolean = true
 ) {
     val maskedUrl: String
         get() = try {
