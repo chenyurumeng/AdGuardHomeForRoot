@@ -1,6 +1,7 @@
 package io.github.chenyurumeng.aghmanager;
 
 import android.app.Activity;
+import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
@@ -15,7 +16,6 @@ import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.WindowInsets;
 import android.widget.BaseAdapter;
 import android.widget.CheckBox;
 import android.widget.EditText;
@@ -24,6 +24,9 @@ import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -44,6 +47,11 @@ public class AppRoutingActivity extends Activity {
     private static final String BOX_SETTINGS = "/data/adb/box/settings.ini";
     private static final String BOX_PACKAGE_LIST = "/data/adb/box/package.list.cfg";
 
+    private static final String CACHE_PREFS = "app_routing_cache_v2";
+    private static final String KEY_CACHE_APPS = "apps";
+    private static final String KEY_CACHE_MODE = "mode";
+    private static final String KEY_CACHE_SELECTED = "selected";
+
     private static final int BG = Color.rgb(11, 15, 20);
     private static final int SURFACE = Color.rgb(20, 26, 34);
     private static final int SURFACE_ALT = Color.rgb(27, 36, 48);
@@ -52,6 +60,7 @@ public class AppRoutingActivity extends Activity {
     private static final int MUTED = Color.rgb(139, 152, 169);
     private static final int BLUE = Color.rgb(91, 140, 255);
     private static final int GREEN = Color.rgb(57, 217, 138);
+    private static final int ORANGE = Color.rgb(255, 176, 32);
     private static final int RED = Color.rgb(255, 92, 92);
 
     private final ExecutorService io = Executors.newSingleThreadExecutor();
@@ -60,9 +69,11 @@ public class AppRoutingActivity extends Activity {
     private final List<AppEntry> allApps = new ArrayList<>();
     private final List<AppEntry> filteredApps = new ArrayList<>();
     private final Set<String> selected = new HashSet<>();
+    private final Set<String> appliedSelected = new HashSet<>();
     private final Map<Integer, String> userNames = new HashMap<>();
 
     private PackageManager pm;
+    private SharedPreferences cachePrefs;
     private AppAdapter adapter;
     private TextView blacklistButton;
     private TextView whitelistButton;
@@ -71,16 +82,16 @@ public class AppRoutingActivity extends Activity {
     private TextView systemFilterButton;
     private TextView summary;
     private TextView applyState;
+    private TextView applyButton;
     private EditText search;
 
     private String mode = "whitelist";
+    private String appliedMode = "whitelist";
     private String filter = "all";
     private String query = "";
     private boolean destroyed;
     private boolean applying;
-    private int applyRevision;
-
-    private final Runnable delayedApply = () -> applyRouting(false);
+    private boolean dirty;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -88,8 +99,11 @@ public class AppRoutingActivity extends Activity {
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
         pm = getPackageManager();
+        cachePrefs = getSharedPreferences(CACHE_PREFS, MODE_PRIVATE);
+
         setContentView(buildUi());
-        loadRoutingState();
+        loadCacheImmediately();
+        syncIncrementally();
     }
 
     private View buildUi() {
@@ -112,19 +126,19 @@ public class AppRoutingActivity extends Activity {
         LinearLayout titles = column();
         titles.setPadding(dp(10), 0, 0, 0);
         titles.addView(text("应用分流", 24, true));
-        applyState = text("正在读取 Box 配置…", 11, false);
+        applyState = text("正在载入本地缓存…", 11, false);
         applyState.setTextColor(MUTED);
         titles.addView(applyState);
-        header.addView(titles, new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        header.addView(titles, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         root.addView(header);
 
         LinearLayout modeRow = row();
         modeRow.setPadding(0, dp(14), 0, dp(10));
         blacklistButton = segment("Blacklist");
         whitelistButton = segment("Whitelist");
-        blacklistButton.setOnClickListener(v -> setMode("blacklist", true));
-        whitelistButton.setOnClickListener(v -> setMode("whitelist", true));
+        blacklistButton.setOnClickListener(v -> setMode("blacklist"));
+        whitelistButton.setOnClickListener(v -> setMode("whitelist"));
         modeRow.addView(blacklistButton, weightHeight(50));
         modeRow.addView(whitelistButton, weightHeight(50));
         root.addView(modeRow);
@@ -160,7 +174,7 @@ public class AppRoutingActivity extends Activity {
         root.addView(filterRow);
         updateFilterButtons();
 
-        summary = text("正在读取应用…", 12, false);
+        summary = text("正在读取缓存…", 12, false);
         summary.setTextColor(MUTED);
         summary.setPadding(dp(4), dp(2), dp(4), dp(8));
         root.addView(summary);
@@ -176,15 +190,17 @@ public class AppRoutingActivity extends Activity {
         root.addView(list, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
 
-        TextView save = button("保存并立即应用", BLUE);
-        save.setTextSize(15);
-        save.setOnClickListener(v -> applyRouting(true));
+        applyButton = button("应用", BLUE);
+        applyButton.setTextSize(15);
+        applyButton.setOnClickListener(v -> applyRouting());
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(54));
         sp.setMargins(0, dp(8), 0, 0);
-        root.addView(save, sp);
+        root.addView(applyButton, sp);
 
-        TextView hint = text("勾选和模式切换会自动实时应用；“保存”可手动强制同步。", 11, false);
+        TextView hint = text(
+                "选择、取消或切换模式只在本页暂存；点击“应用”后才写入 Box 并立即生效。",
+                11, false);
         hint.setTextColor(MUTED);
         hint.setGravity(Gravity.CENTER);
         hint.setPadding(0, dp(7), 0, 0);
@@ -194,41 +210,94 @@ public class AppRoutingActivity extends Activity {
         return root;
     }
 
-    private void loadRoutingState() {
-        io.execute(() -> {
-            String command =
-                    "echo '__MODE__'; " +
-                    "sed -n 's/^proxy_mode=\"\\([^\"]*\\)\".*/\\1/p' " + BOX_SETTINGS + " | head -n1; " +
-                    "echo '__SELECTED__'; cat " + BOX_PACKAGE_LIST + " 2>/dev/null || true; " +
-                    "echo '__USERS__'; pm list users 2>/dev/null || true; " +
-                    "echo '__PACKAGES__'; " +
-                    "for u in $(pm list users 2>/dev/null | sed -n 's/.*UserInfo{\\([0-9][0-9]*\\):.*/\\1/p'); do " +
-                    "pm list packages --user \"$u\" 2>/dev/null | sed \"s/^package:/$u|/\"; done; " +
-                    "echo '__END__'";
+    private void loadCacheImmediately() {
+        List<AppEntry> cached = readCachedApps();
+        allApps.clear();
+        allApps.addAll(cached);
 
-            RootShell.Result result = RootShell.exec(command, 45);
+        String cachedMode = cachePrefs.getString(KEY_CACHE_MODE, "whitelist");
+        mode = normalizeMode(cachedMode);
+        appliedMode = mode;
+
+        selected.clear();
+        selected.addAll(decodeSelected(cachePrefs.getString(KEY_CACHE_SELECTED, "")));
+        appliedSelected.clear();
+        appliedSelected.addAll(selected);
+
+        updateModeButtons();
+        rebuildFilter();
+        dirty = false;
+        updateApplyUi();
+
+        if (allApps.isEmpty()) {
+            applyState.setText("首次建立应用缓存 · 正在读取设备应用…");
+        } else {
+            applyState.setText("已从本地缓存加载 " + allApps.size() + " 个应用 · 后台增量检查中…");
+        }
+        applyState.setTextColor(MUTED);
+    }
+
+    private void syncIncrementally() {
+        io.execute(() -> {
+            RootShell.Result result = RootShell.exec(buildStateCommand(), 45);
             ParsedState parsed = parseState(result.output);
+
+            if (!result.ok()) {
+                main.post(() -> {
+                    if (destroyed) return;
+                    applyState.setText("后台同步失败 · 继续使用本地缓存");
+                    applyState.setTextColor(ORANGE);
+                });
+                return;
+            }
+
+            List<AppEntry> cached = readCachedApps();
+            MergeResult merge = mergeApps(cached, parsed);
+            persistCache(merge.apps, parsed.mode, parsed.selected);
 
             main.post(() -> {
                 if (destroyed) return;
-                selected.clear();
-                selected.addAll(parsed.selected);
+
+                allApps.clear();
+                allApps.addAll(merge.apps);
                 userNames.clear();
                 userNames.putAll(parsed.userNames);
-                if ("blacklist".equals(parsed.mode) || "black".equals(parsed.mode)) {
-                    mode = "blacklist";
-                } else {
-                    mode = "whitelist";
+
+                appliedMode = normalizeMode(parsed.mode);
+                appliedSelected.clear();
+                appliedSelected.addAll(parsed.selected);
+
+                if (!dirty) {
+                    mode = appliedMode;
+                    selected.clear();
+                    selected.addAll(appliedSelected);
                 }
-                buildAppEntries(parsed.packages);
+
                 updateModeButtons();
                 rebuildFilter();
-                applyState.setText(result.ok()
-                        ? "已连接 Box · 点击应用后实时生效"
-                        : "读取失败：" + result.output);
-                applyState.setTextColor(result.ok() ? GREEN : RED);
+                updateDirtyState();
+
+                String delta;
+                if (merge.added == 0 && merge.removed == 0) {
+                    delta = "无应用变化";
+                } else {
+                    delta = "新增 " + merge.added + " · 删除 " + merge.removed;
+                }
+                applyState.setText("缓存已同步 · " + allApps.size() + " 个应用 · " + delta);
+                applyState.setTextColor(GREEN);
             });
         });
+    }
+
+    private String buildStateCommand() {
+        return "echo '__MODE__'; " +
+                "sed -n 's/^proxy_mode=\"\\([^\"]*\\)\".*/\\1/p' " + BOX_SETTINGS + " | head -n1; " +
+                "echo '__SELECTED__'; cat " + BOX_PACKAGE_LIST + " 2>/dev/null || true; " +
+                "echo '__USERS__'; pm list users 2>/dev/null || true; " +
+                "echo '__PACKAGES__'; " +
+                "for u in $(pm list users 2>/dev/null | sed -n 's/.*UserInfo{\\([0-9][0-9]*\\):.*/\\1/p'); do " +
+                "pm list packages --user \"$u\" 2>/dev/null | sed \"s/^package:/$u|/\"; done; " +
+                "echo '__END__'";
     }
 
     private ParsedState parseState(String output) {
@@ -246,7 +315,7 @@ public class AppRoutingActivity extends Activity {
 
             switch (section) {
                 case "__MODE__":
-                    if (state.mode.isEmpty()) state.mode = line;
+                    if (state.mode.isEmpty()) state.mode = normalizeMode(line);
                     break;
                 case "__SELECTED__":
                     if (line.startsWith("#")) break;
@@ -279,36 +348,132 @@ public class AppRoutingActivity extends Activity {
                 }
             }
         }
+
+        if (state.mode.isEmpty()) state.mode = "whitelist";
         return state;
     }
 
-    private void buildAppEntries(List<PackageKey> packages) {
-        allApps.clear();
-        Set<String> seen = new HashSet<>();
+    private MergeResult mergeApps(List<AppEntry> cached, ParsedState parsed) {
+        Map<String, AppEntry> old = new HashMap<>();
+        for (AppEntry app : cached) old.put(app.key(), app);
 
-        for (PackageKey key : packages) {
+        List<AppEntry> merged = new ArrayList<>();
+        Set<String> live = new HashSet<>();
+        int added = 0;
+
+        for (PackageKey key : parsed.packages) {
             String unique = key.userId + ":" + key.pkg;
-            if (!seen.add(unique)) continue;
+            if (!live.add(unique)) continue;
 
-            String label = key.pkg;
-            boolean system = false;
-            Drawable icon = null;
-            try {
-                ApplicationInfo ai = pm.getApplicationInfo(key.pkg, PackageManager.MATCH_UNINSTALLED_PACKAGES);
-                CharSequence l = pm.getApplicationLabel(ai);
-                if (l != null && l.length() > 0) label = l.toString();
-                system = (ai.flags & ApplicationInfo.FLAG_SYSTEM) != 0;
-                icon = pm.getApplicationIcon(ai);
-            } catch (Exception ignored) {}
-
-            String userName = userNames.get(key.userId);
+            String userName = parsed.userNames.get(key.userId);
             if (userName == null || userName.trim().isEmpty()) {
                 userName = key.userId == 0 ? "Owner" : "User";
             }
-            allApps.add(new AppEntry(key.userId, key.pkg, label, userName, system, icon));
+
+            AppEntry previous = old.get(unique);
+            if (previous != null) {
+                merged.add(new AppEntry(
+                        key.userId,
+                        key.pkg,
+                        previous.label,
+                        userName,
+                        previous.system,
+                        null
+                ));
+            } else {
+                merged.add(resolveNewEntry(key.userId, key.pkg, userName));
+                added++;
+            }
         }
 
-        Collections.sort(allApps, Comparator
+        int removed = 0;
+        for (String key : old.keySet()) {
+            if (!live.contains(key)) removed++;
+        }
+
+        sortApps(merged);
+        return new MergeResult(merged, added, removed);
+    }
+
+    private AppEntry resolveNewEntry(int userId, String pkg, String userName) {
+        String label = pkg;
+        boolean system = false;
+        try {
+            ApplicationInfo ai = pm.getApplicationInfo(pkg, PackageManager.MATCH_UNINSTALLED_PACKAGES);
+            CharSequence value = pm.getApplicationLabel(ai);
+            if (value != null && value.length() > 0) label = value.toString();
+            system = (ai.flags & ApplicationInfo.FLAG_SYSTEM) != 0;
+        } catch (Exception ignored) {}
+        return new AppEntry(userId, pkg, label, userName, system, null);
+    }
+
+    private List<AppEntry> readCachedApps() {
+        List<AppEntry> result = new ArrayList<>();
+        String raw = cachePrefs.getString(KEY_CACHE_APPS, "[]");
+        try {
+            JSONArray array = new JSONArray(raw);
+            for (int i = 0; i < array.length(); i++) {
+                JSONObject o = array.optJSONObject(i);
+                if (o == null) continue;
+
+                int userId = o.optInt("userId", 0);
+                String pkg = o.optString("pkg", "");
+                if (!pkg.matches("[A-Za-z0-9._]+")) continue;
+
+                String label = o.optString("label", pkg);
+                String userName = o.optString("userName", userId == 0 ? "Owner" : "User");
+                boolean system = o.optBoolean("system", false);
+                result.add(new AppEntry(userId, pkg, label, userName, system, null));
+            }
+        } catch (Exception ignored) {}
+        sortApps(result);
+        return result;
+    }
+
+    private void persistCache(List<AppEntry> apps, String cacheMode, Set<String> cacheSelected) {
+        JSONArray array = new JSONArray();
+        try {
+            for (AppEntry app : apps) {
+                JSONObject o = new JSONObject();
+                o.put("userId", app.userId);
+                o.put("pkg", app.pkg);
+                o.put("label", app.label);
+                o.put("userName", app.userName);
+                o.put("system", app.system);
+                array.put(o);
+            }
+        } catch (Exception ignored) {}
+
+        cachePrefs.edit()
+                .putString(KEY_CACHE_APPS, array.toString())
+                .putString(KEY_CACHE_MODE, normalizeMode(cacheMode))
+                .putString(KEY_CACHE_SELECTED, encodeSelected(cacheSelected))
+                .apply();
+    }
+
+    private String encodeSelected(Set<String> values) {
+        List<String> sorted = new ArrayList<>(values);
+        Collections.sort(sorted);
+        StringBuilder out = new StringBuilder();
+        for (String value : sorted) {
+            if (value.matches("[0-9]+:[A-Za-z0-9._]+")) {
+                out.append(value).append('\n');
+            }
+        }
+        return out.toString();
+    }
+
+    private Set<String> decodeSelected(String raw) {
+        Set<String> result = new HashSet<>();
+        for (String line : (raw == null ? "" : raw).split("\n")) {
+            String value = line.trim();
+            if (value.matches("[0-9]+:[A-Za-z0-9._]+")) result.add(value);
+        }
+        return result;
+    }
+
+    private void sortApps(List<AppEntry> apps) {
+        Collections.sort(apps, Comparator
                 .comparing((AppEntry a) -> a.label.toLowerCase(Locale.ROOT))
                 .thenComparingInt(a -> a.userId)
                 .thenComparing(a -> a.pkg));
@@ -337,15 +502,23 @@ public class AppRoutingActivity extends Activity {
                 ? "选中应用走代理 / Foreign 5592"
                 : "选中应用直连 / Domestic 5591";
         summary.setText("已选 " + selected.size() + " · 显示 " + filteredApps.size()
-                + " / " + allApps.size() + " · " + semantics);
+                + " / " + allApps.size() + " · " + semantics
+                + (dirty ? " · 有未应用更改" : ""));
     }
 
-    private void setMode(String newMode, boolean apply) {
-        if (newMode.equals(mode)) return;
-        mode = newMode;
+    private void setMode(String newMode) {
+        String normalized = normalizeMode(newMode);
+        if (normalized.equals(mode)) return;
+        mode = normalized;
         updateModeButtons();
-        updateSummary();
-        if (apply) scheduleApply();
+        updateDirtyState();
+    }
+
+    private String normalizeMode(String value) {
+        if ("blacklist".equalsIgnoreCase(value) || "black".equalsIgnoreCase(value)) {
+            return "blacklist";
+        }
+        return "whitelist";
     }
 
     private void setFilter(String newFilter) {
@@ -367,30 +540,28 @@ public class AppRoutingActivity extends Activity {
         styleFilter(systemFilterButton, "system".equals(filter));
     }
 
-    private void scheduleApply() {
-        applyRevision++;
-        main.removeCallbacks(delayedApply);
-        main.postDelayed(delayedApply, 350);
-        if (applyState != null) {
-            applyState.setText("等待应用变更…");
-            applyState.setTextColor(MUTED);
-        }
+    private void updateDirtyState() {
+        dirty = !mode.equals(appliedMode) || !selected.equals(appliedSelected);
+        updateApplyUi();
+        updateSummary();
     }
 
-    private void applyRouting(boolean manual) {
-        if (destroyed) return;
-        main.removeCallbacks(delayedApply);
-        final int revision = ++applyRevision;
+    private void updateApplyUi() {
+        if (applyButton == null) return;
+        applyButton.setText("应用");
+        applyButton.setAlpha(applying ? 0.55f : (dirty ? 1.0f : 0.82f));
+    }
+
+    private void applyRouting() {
+        if (destroyed || applying) return;
+
         final String applyMode = mode;
         final List<String> entries = new ArrayList<>(selected);
         Collections.sort(entries);
 
-        if (applying && !manual) {
-            main.postDelayed(delayedApply, 400);
-            return;
-        }
         applying = true;
-        applyState.setText("正在实时应用 " + applyMode + "…");
+        updateApplyUi();
+        applyState.setText("正在应用 " + applyMode + "…");
         applyState.setTextColor(BLUE);
 
         io.execute(() -> {
@@ -413,14 +584,16 @@ public class AppRoutingActivity extends Activity {
             main.post(() -> {
                 applying = false;
                 if (destroyed) return;
-                if (revision != applyRevision && !manual) {
-                    scheduleApply();
-                    return;
-                }
+
                 if (result.ok()) {
-                    applyState.setText("已实时应用 · " + applyMode + " · " + entries.size() + " 个应用");
+                    appliedMode = applyMode;
+                    appliedSelected.clear();
+                    appliedSelected.addAll(entries);
+                    persistCache(allApps, appliedMode, appliedSelected);
+                    dirty = false;
+                    applyState.setText("已应用 · " + appliedMode + " · " + entries.size() + " 个应用");
                     applyState.setTextColor(GREEN);
-                    if (manual) Toast.makeText(this, "应用分流已保存并生效", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "应用分流已生效", Toast.LENGTH_SHORT).show();
                 } else {
                     applyState.setText("应用失败 · exit=" + result.code);
                     applyState.setTextColor(RED);
@@ -428,6 +601,8 @@ public class AppRoutingActivity extends Activity {
                             result.output.isEmpty() ? "应用分流失败" : result.output,
                             Toast.LENGTH_LONG).show();
                 }
+                updateApplyUi();
+                updateSummary();
             });
         });
     }
@@ -511,7 +686,6 @@ public class AppRoutingActivity extends Activity {
     @Override
     protected void onDestroy() {
         destroyed = true;
-        main.removeCallbacks(delayedApply);
         io.shutdownNow();
         super.onDestroy();
     }
@@ -519,9 +693,7 @@ public class AppRoutingActivity extends Activity {
     private final class AppAdapter extends BaseAdapter {
         @Override public int getCount() { return filteredApps.size(); }
         @Override public AppEntry getItem(int position) { return filteredApps.get(position); }
-        @Override public long getItemId(int position) {
-            return getItem(position).key().hashCode();
-        }
+        @Override public long getItemId(int position) { return getItem(position).key().hashCode(); }
 
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
@@ -561,6 +733,11 @@ public class AppRoutingActivity extends Activity {
             }
 
             AppEntry app = getItem(position);
+            if (app.icon == null) {
+                try {
+                    app.icon = pm.getApplicationIcon(app.pkg);
+                } catch (Exception ignored) {}
+            }
             holder.icon.setImageDrawable(app.icon != null
                     ? app.icon
                     : getDrawable(android.R.drawable.sym_def_app_icon));
@@ -573,15 +750,11 @@ public class AppRoutingActivity extends Activity {
             holder.check.setOnCheckedChangeListener((buttonView, checked) -> {
                 if (checked) selected.add(app.key());
                 else selected.remove(app.key());
-                updateSummary();
-                scheduleApply();
+                updateDirtyState();
             });
 
-            convertView.setOnClickListener(v -> holder.check.setChecked(!holder.check.isChecked()));
-
-            if (position == 0) {
-                convertView.setPadding(dp(12), dp(12), dp(10), dp(10));
-            }
+            final CheckBox target = holder.check;
+            convertView.setOnClickListener(v -> target.setChecked(!target.isChecked()));
             return convertView;
         }
     }
@@ -606,7 +779,7 @@ public class AppRoutingActivity extends Activity {
         final String label;
         final String userName;
         final boolean system;
-        final Drawable icon;
+        Drawable icon;
 
         AppEntry(int userId, String pkg, String label, String userName, boolean system, Drawable icon) {
             this.userId = userId;
@@ -635,5 +808,17 @@ public class AppRoutingActivity extends Activity {
         final Set<String> selected = new HashSet<>();
         final Map<Integer, String> userNames = new HashMap<>();
         final List<PackageKey> packages = new ArrayList<>();
+    }
+
+    private static final class MergeResult {
+        final List<AppEntry> apps;
+        final int added;
+        final int removed;
+
+        MergeResult(List<AppEntry> apps, int added, int removed) {
+            this.apps = apps;
+            this.added = added;
+            this.removed = removed;
+        }
     }
 }
