@@ -177,6 +177,60 @@ class AghFilteringRepository(
         ).map { Unit }
     }
 
+    suspend fun addUserRule(
+        instance: AghInstance,
+        rule: String
+    ): Result<Unit> {
+        val normalized = rule.trim()
+        if (normalized.isBlank()) {
+            return Result.failure(IllegalArgumentException("规则不能为空"))
+        }
+        val latest = load(instance)
+        if (latest.isFailure) return Result.failure(latest.exceptionOrNull()!!)
+        val baseline = latest.getOrThrow().userRules
+        if (normalized in baseline) return Result.success(Unit)
+        return saveUserRules(instance, baseline, baseline + normalized)
+    }
+
+    suspend fun replaceUserRule(
+        instance: AghInstance,
+        original: String,
+        replacement: String
+    ): Result<Unit> {
+        val normalizedOriginal = original.trim()
+        val normalizedReplacement = replacement.trim()
+        if (normalizedReplacement.isBlank()) {
+            return Result.failure(IllegalArgumentException("新规则不能为空"))
+        }
+        val latest = load(instance)
+        if (latest.isFailure) return Result.failure(latest.exceptionOrNull()!!)
+        val baseline = latest.getOrThrow().userRules
+        val index = baseline.indexOf(normalizedOriginal)
+        if (index < 0) {
+            return Result.failure(
+                IllegalStateException("目标 User Rule 已不存在，请刷新后重试")
+            )
+        }
+        val next = baseline.toMutableList()
+        next[index] = normalizedReplacement
+        return saveUserRules(instance, baseline, next)
+    }
+
+    suspend fun deleteUserRule(
+        instance: AghInstance,
+        rule: String
+    ): Result<Unit> {
+        val latest = load(instance)
+        if (latest.isFailure) return Result.failure(latest.exceptionOrNull()!!)
+        val baseline = latest.getOrThrow().userRules
+        if (rule !in baseline) {
+            return Result.failure(
+                IllegalStateException("目标 User Rule 已不存在，请刷新后重试")
+            )
+        }
+        return saveUserRules(instance, baseline, baseline.filterNot { it == rule })
+    }
+
     suspend fun checkHost(
         instance: AghInstance,
         host: String,

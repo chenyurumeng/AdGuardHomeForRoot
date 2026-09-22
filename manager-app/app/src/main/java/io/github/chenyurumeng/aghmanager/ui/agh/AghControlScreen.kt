@@ -51,6 +51,7 @@ fun AghControlScreen(
     contentPadding: PaddingValues,
     onBack: () -> Unit,
     onOpenFilters: () -> Unit,
+    onOpenQueryLog: () -> Unit,
     onOpenWeb: (String, String) -> Unit
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -267,6 +268,29 @@ fun AghControlScreen(
                     },
                     trailingContent = {
                         Icon(Icons.Default.ChevronRight, contentDescription = "打开过滤规则")
+                    }
+                )
+            }
+
+            item { SectionHeader("查询日志") }
+            item {
+                ListItem(
+                    modifier = Modifier.clickable(
+                        enabled = state.credentialBound && state.apiAvailable,
+                        onClick = onOpenQueryLog
+                    ),
+                    headlineContent = { Text("Query Log") },
+                    supportingContent = {
+                        Text(
+                            if (state.credentialBound && state.apiAvailable) {
+                                "实时查询、搜索筛选、详情、阻止/允许及 User Rule 编辑"
+                            } else {
+                                "需要先绑定有效 AGH 管理凭据"
+                            }
+                        )
+                    },
+                    trailingContent = {
+                        Icon(Icons.Default.ChevronRight, contentDescription = "打开 Query Log")
                     }
                 )
             }
