@@ -49,16 +49,27 @@ LOG="$AGH_DIR/debug.log"
   ls -lR "$AGH_DIR"
   echo
 
-  echo "== AGH Bin Log (last 30 lines) =="
+  echo "== AGH Logs (last 30 lines each) =="
+  echo "-- standalone --"
   tail -n 30 "$AGH_DIR/bin.log" 2>/dev/null
+  echo "-- domestic --"
+  tail -n 30 "$AGH_DIR/instances/domestic/agh.log" 2>/dev/null
+  echo "-- foreign --"
+  tail -n 30 "$AGH_DIR/instances/foreign/agh.log" 2>/dev/null
   echo
 
   echo "== AGH Settings =="
   cat "$AGH_DIR/settings.conf" 2>/dev/null
   echo
 
-  echo "== AGH PID File =="
-  cat "$AGH_DIR/bin/agh.pid" 2>/dev/null
+  echo "== AGH PID Files =="
+  echo -n "standalone: "; cat "$AGH_DIR/bin/agh.pid" 2>/dev/null
+  echo -n "domestic: "; cat "$AGH_DIR/instances/domestic/agh.pid" 2>/dev/null
+  echo -n "foreign: "; cat "$AGH_DIR/instances/foreign/agh.pid" 2>/dev/null
+  echo
+
+  echo "== DNS Listener Ports =="
+  grep -iE ':(15D7|15D8|041D) ' /proc/net/udp /proc/net/udp6 /proc/net/tcp /proc/net/tcp6 2>/dev/null || true
   echo
 
   echo "== Running Processes (AdGuardHome) =="
@@ -71,6 +82,12 @@ LOG="$AGH_DIR/debug.log"
 
   echo "== ip6tables -t nat -L -n -v =="
   ip6tables -t nat -L -n -v
+  echo
+
+  echo "== Box DNS Chains =="
+  iptables -t nat -nvL NAT_DNS_HIJACK --line-numbers 2>/dev/null || true
+  iptables -t nat -nvL NAT_DNS_HIJACK_NEXT --line-numbers 2>/dev/null || true
+  ip6tables -t filter -nvL BOX_DNS6_REJECT --line-numbers 2>/dev/null || true
   echo
 
   echo "== Network Interfaces =="
