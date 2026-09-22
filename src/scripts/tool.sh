@@ -277,9 +277,11 @@ case "$integration_mode" in
       status) status_dual ;;
       start-domestic) start_instance domestic; notify_box_dns ;;
       stop-domestic) stop_instance domestic; notify_box_dns ;;
+      restart-domestic) stop_instance domestic; start_instance domestic; notify_box_dns ;;
       start-foreign) start_instance foreign; notify_box_dns ;;
       stop-foreign) stop_instance foreign; notify_box_dns ;;
-      *) echo "Usage: $0 {start|stop|restart|toggle|status|start-domestic|stop-domestic|start-foreign|stop-foreign}"; exit 1 ;;
+      restart-foreign) stop_instance foreign; start_instance foreign; notify_box_dns ;;
+      *) echo "Usage: $0 {start|stop|restart|toggle|status|start-domestic|stop-domestic|restart-domestic|start-foreign|stop-foreign|restart-foreign}"; exit 1 ;;
     esac
     ;;
   *)
