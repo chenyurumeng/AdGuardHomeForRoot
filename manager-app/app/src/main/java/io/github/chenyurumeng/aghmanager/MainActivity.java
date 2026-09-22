@@ -82,6 +82,11 @@ public class MainActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BG);
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            v.setPadding(0, insets.getSystemWindowInsetTop(), 0, 0);
+            return insets;
+        });
+        root.requestApplyInsets();
 
         content = new FrameLayout(this);
         root.addView(content, new LinearLayout.LayoutParams(
@@ -208,7 +213,8 @@ public class MainActivity extends Activity {
         LinearLayout stateRow = new LinearLayout(this);
         stateRow.setOrientation(LinearLayout.HORIZONTAL);
         stateRow.setPadding(0, dp(14), 0, 0);
-        stateRow.addView(routeCell("Box", snapshot.boxUp ? "UP" : "DOWN",
+        stateRow.addView(routeCell("Box",
+                snapshot.boxUp ? safe(snapshot.boxBin, "core") : "DOWN",
                 snapshot.boxUp ? GREEN : RED), weight());
         stateRow.addView(routeCell("Domestic", snapshot.domesticUp ? "5591" : "DOWN",
                 snapshot.domesticUp ? GREEN : RED), weight());
@@ -377,6 +383,36 @@ public class MainActivity extends Activity {
         status.addView(infoRow("Stop Guard", snapshot.userStopped ? "present" : "clear"));
         root.addView(status);
 
+        root.addView(sectionTitle("应用分流"));
+        LinearLayout routing = card();
+        LinearLayout routingTop = rowLayout();
+        LinearLayout routingTitle = column();
+        routingTitle.addView(text("Whitelist / Blacklist", 18, true));
+        TextView routingDesc = text(
+                "Whitelist：选中应用走代理 / Foreign；Blacklist：选中应用直连 / Domestic",
+                12, false);
+        routingDesc.setTextColor(MUTED);
+        routingTitle.addView(routingDesc);
+        routingTop.addView(routingTitle, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        routingTop.addView(chip(safe(snapshot.proxyMode, "?").toUpperCase(), BLUE));
+        routing.addView(routingTop);
+
+        TextView manageApps = largeButton("管理应用分流", PURPLE);
+        manageApps.setOnClickListener(v ->
+                startActivity(new Intent(this, AppRoutingActivity.class)));
+        LinearLayout.LayoutParams map = matchWrap();
+        map.setMargins(0, dp(12), 0, 0);
+        routing.addView(manageApps, map);
+
+        TextView liveHint = text(
+                "支持搜索、User/System 筛选、多用户/分身 UID；勾选或切换模式后实时热应用。",
+                11, false);
+        liveHint.setTextColor(MUTED);
+        liveHint.setPadding(dp(2), dp(10), dp(2), 0);
+        routing.addView(liveHint);
+        root.addView(routing);
+
         root.addView(sectionTitle("Box 控制"));
         LinearLayout controls = card();
         controls.addView(actionRow(
@@ -527,7 +563,7 @@ public class MainActivity extends Activity {
     private View buildSettingsPage() {
         ScrollView scroll = pageScroll();
         LinearLayout root = pageColumn(scroll);
-        root.addView(pageTitle("设置", "Box & AGH Manager v0.3.0-rc3"));
+        root.addView(pageTitle("设置", "Box & AGH Manager v0.4.0-rc1"));
 
         root.addView(sectionTitle("自动刷新"));
         LinearLayout refreshCard = card();
@@ -574,7 +610,7 @@ public class MainActivity extends Activity {
 
         root.addView(sectionTitle("关于"));
         LinearLayout about = card();
-        about.addView(infoRow("版本", "0.3.0-rc3"));
+        about.addView(infoRow("版本", "0.4.0-rc1"));
         about.addView(infoRow("Box 后端", BOX_SERVICE));
         about.addView(infoRow("AGH 后端", AGH_TOOL));
         about.addView(infoRow("Mihomo Dashboard", snapshot.dashboardUrl()));
@@ -758,7 +794,7 @@ public class MainActivity extends Activity {
 
         io.execute(() -> {
             String command =
-                    "echo 'Box & AGH Manager v0.3.0-rc3'; " +
+                    "echo 'Box & AGH Manager v0.4.0-rc1'; " +
                     "echo '===== BOX STATUS ====='; " +
                     BOX_SERVICE + " status 2>&1 || true; " +
                     "echo '===== BOX STOP GUARD ====='; " +
