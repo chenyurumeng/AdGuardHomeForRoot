@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - feat/box-dual-dns
+      - feat/agh-manager-apk
     tags:
       - "[0-9]*"
   pull_request:
@@ -44,6 +45,19 @@ jobs:
           grep -q 'https://1.1.1.1/dns-query' src/instances/foreign/AdGuardHome.yaml
           grep -q 'https://dns.alidns.com/dns-query' src/instances/domestic/AdGuardHome.yaml
           grep -q 'https://doh.pub/dns-query' src/instances/domestic/AdGuardHome.yaml
+          grep -q 'aaaa_disabled: false' src/instances/domestic/AdGuardHome.yaml
+          grep -q 'aaaa_disabled: false' src/instances/foreign/AdGuardHome.yaml
+          grep -q '2400:3200::1' src/instances/domestic/AdGuardHome.yaml
+          grep -q '2606:4700:4700::1111' src/instances/foreign/AdGuardHome.yaml
+          grep -q '2001:4860:4860::8888' src/instances/foreign/AdGuardHome.yaml
+          if sed -n '/bootstrap_dns:/,/fallback_dns:/p' src/instances/domestic/AdGuardHome.yaml | grep -q 'https://'; then
+            echo "domestic bootstrap_dns must use plain DNS IP addresses"
+            exit 1
+          fi
+          if sed -n '/bootstrap_dns:/,/fallback_dns:/p' src/instances/foreign/AdGuardHome.yaml | grep -q 'https://'; then
+            echo "foreign bootstrap_dns must use plain DNS IP addresses"
+            exit 1
+          fi
           if grep -qE '^[[:space:]]+- https://(1\.1\.1\.1|1\.0\.0\.1|dns\.google|cloudflare-dns\.com)/' src/instances/domestic/AdGuardHome.yaml; then
             echo "domestic instance must not use foreign DNS upstreams"
             exit 1
