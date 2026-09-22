@@ -56,6 +56,8 @@ fun BoxScreen(
     mihomoViewModel: MihomoViewModel,
     contentPadding: PaddingValues,
     onManageApps: () -> Unit,
+    onConnections: () -> Unit,
+    onSubscriptions: () -> Unit,
     onOpenDashboard: (String) -> Unit
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -192,6 +194,34 @@ fun BoxScreen(
             }
 
             item { SectionHeader("Mihomo Quick Control") }
+            item {
+                ListItem(
+                    headlineContent = { Text("活动连接与实时监控") },
+                    supportingContent = { Text("连接、规则、代理链、实时流量与 Mihomo 内存") },
+                    modifier = Modifier.clickable(onClick = onConnections),
+                    trailingContent = {
+                        androidx.compose.material3.Icon(
+                            Icons.Default.ChevronRight,
+                            contentDescription = "打开活动连接"
+                        )
+                    }
+                )
+            }
+            item { Divider() }
+            item {
+                ListItem(
+                    headlineContent = { Text("订阅管理") },
+                    supportingContent = { Text("添加 / 编辑 HTTP Proxy Provider") },
+                    modifier = Modifier.clickable(onClick = onSubscriptions),
+                    trailingContent = {
+                        androidx.compose.material3.Icon(
+                            Icons.Default.ChevronRight,
+                            contentDescription = "打开订阅管理"
+                        )
+                    }
+                )
+            }
+            item { Divider() }
             item {
                 MihomoStatusCard(
                     state = mihomo,

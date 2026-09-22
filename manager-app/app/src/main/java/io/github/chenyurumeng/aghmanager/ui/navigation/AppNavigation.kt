@@ -55,6 +55,7 @@ fun AppNavigation(
     settingsRepository: SettingsRepository,
     boxSettingsRepository: BoxSettingsRepository,
     mihomoApiRepository: MihomoApiRepository,
+    mihomoSubscriptionRepository: MihomoSubscriptionRepository,
     logRepository: LogRepository,
     diagnosticRepository: DiagnosticRepository,
     orchestrator: SystemOrchestrator,
@@ -67,7 +68,9 @@ fun AppNavigation(
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route ?: "home"
-    val isAppRouting = currentRoute == "appRouting"
+    val isSubpage = currentRoute == "appRouting" ||
+        currentRoute == "mihomoConnections" ||
+        currentRoute == "mihomoSubscriptions"
     val current = destinations.firstOrNull { it.route == currentRoute }
         ?: destinations.firstOrNull { it.route == "box" }
         ?: destinations.first()
@@ -82,14 +85,14 @@ fun AppNavigation(
 
     Scaffold(
         topBar = {
-            if (!isAppRouting) {
+            if (!isSubpage) {
                 TopAppBar(
                     title = {
                         Column {
                             Text(current.label)
                             if (currentRoute == "home") {
                                 Text(
-                                    "Box & AGH Manager · v0.5.0-rc3",
+                                    "Box & AGH Manager · v0.5.0-rc4",
                                     style = androidx.compose.material3.MaterialTheme.typography.labelSmall
                                 )
                             }
@@ -106,7 +109,7 @@ fun AppNavigation(
             }
         },
         bottomBar = {
-            if (!isAppRouting) {
+            if (!isSubpage) {
                 NavigationBar {
                     destinations.forEach { destination ->
                         NavigationBarItem(
@@ -151,6 +154,8 @@ fun AppNavigation(
                     mihomoViewModel = mihomoVm,
                     contentPadding = innerPadding,
                     onManageApps = { navController.navigate("appRouting") },
+                    onConnections = { navController.navigate("mihomoConnections") },
+                    onSubscriptions = { navController.navigate("mihomoSubscriptions") },
                     onOpenDashboard = onOpenMihomoDashboard
                 )
             }
@@ -160,6 +165,35 @@ fun AppNavigation(
                 )
                 LaunchedEffect(vm) { vm.messages.collect { snackbarHostState.showSnackbar(it) } }
                 AppRoutingScreen(viewModel = vm, contentPadding = innerPadding, onBack = { navController.popBackStack() })
+            }
+            composable("mihomoConnections") {
+                val vm: MihomoConnectionsViewModel = viewModel(
+                    factory = MihomoConnectionsViewModel.Factory(mihomoApiRepository)
+                )
+                LaunchedEffect(vm) {
+                    vm.messages.collect { snackbarHostState.showSnackbar(it) }
+                }
+                MihomoConnectionsScreen(
+                    viewModel = vm,
+                    contentPadding = innerPadding,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable("mihomoSubscriptions") {
+                val vm: MihomoSubscriptionsViewModel = viewModel(
+                    factory = MihomoSubscriptionsViewModel.Factory(
+                        mihomoSubscriptionRepository,
+                        mihomoApiRepository
+                    )
+                )
+                LaunchedEffect(vm) {
+                    vm.messages.collect { snackbarHostState.showSnackbar(it) }
+                }
+                MihomoSubscriptionsScreen(
+                    viewModel = vm,
+                    contentPadding = innerPadding,
+                    onBack = { navController.popBackStack() }
+                )
             }
             composable("agh") {
                 val vm: AghViewModel = viewModel(factory = AghViewModel.Factory(statusRepository, aghController))
