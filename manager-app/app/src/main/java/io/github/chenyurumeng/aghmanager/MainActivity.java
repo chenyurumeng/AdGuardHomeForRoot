@@ -320,8 +320,15 @@ public class MainActivity extends Activity {
                 snapshot.userStopped ? ORANGE : BLUE));
         card.addView(top);
 
-        card.addView(routeTextRow("普通应用", ordinaryDnsTarget()));
-        card.addView(routeTextRow("白名单应用", whitelistDnsTarget()));
+        boolean blacklistMode = "blacklist".equalsIgnoreCase(snapshot.proxyMode)
+                || "black".equalsIgnoreCase(snapshot.proxyMode);
+        if (blacklistMode) {
+            card.addView(routeTextRow("黑名单应用", domesticDnsTarget()));
+            card.addView(routeTextRow("其它应用", foreignDnsTarget()));
+        } else {
+            card.addView(routeTextRow("白名单应用", foreignDnsTarget()));
+            card.addView(routeTextRow("其它应用", domesticDnsTarget()));
+        }
 
         LinearLayout listeners = new LinearLayout(this);
         listeners.setOrientation(LinearLayout.HORIZONTAL);
@@ -903,18 +910,20 @@ public class MainActivity extends Activity {
         }
     }
 
-    private String ordinaryDnsTarget() {
+    private String domesticDnsTarget() {
         if (snapshot.userStopped || !snapshot.boxUp) return "系统 DNS（Box stopped）";
-        if (snapshot.route5591) return "Domestic :5591";
-        return snapshot.domesticUp ? "Domestic available / rule unknown" : "系统 DNS";
+        if (snapshot.route5591 && snapshot.port5591Up) return "Domestic :5591";
+        return snapshot.domesticUp ? "Domestic :5591" : "Android 系统 DNS";
     }
 
-    private String whitelistDnsTarget() {
+    private String foreignDnsTarget() {
         if (snapshot.userStopped || !snapshot.boxUp) return "系统 DNS（Box stopped）";
-        if (snapshot.route5592) return "Foreign :5592";
-        if (snapshot.route1053) return "Mihomo :1053 fallback";
+        if (snapshot.route5592 && snapshot.port5592Up) return "Foreign :5592";
+        if (snapshot.route1053 && snapshot.port1053Up) return "Mihomo :1053 fallback";
         if (snapshot.route65534) return ":65534 FAIL-CLOSED";
-        return "规则未识别";
+        if (snapshot.foreignUp) return "Foreign :5592";
+        if (snapshot.port1053Up) return "Mihomo :1053 fallback";
+        return "FAIL-CLOSED";
     }
 
     private View routeCell(String label, String value, int color) {
