@@ -4,7 +4,7 @@ Standalone Android manager for the integrated **Box + Mihomo + dual AdGuard Home
 
 ## Version
 
-v0.4.0-rc1
+v0.4.0-rc2
 
 ## Architecture
 
@@ -107,3 +107,12 @@ Split-app DNS supports both semantics:
 ## Fork update safety
 
 The Magisk module metadata no longer publishes an upstream `updateJson`, preventing the stock upstream module updater from replacing this fork. AdGuard Home instances are also launched with `--no-check-update`.
+
+
+## v0.4.0-rc2 interaction fixes
+
+- Status refresh preserves each page's scroll position instead of rebuilding at the top.
+- App routing uses a persistent local app metadata cache. Cached rows are displayed immediately, then package membership is checked in the background and only additions/removals are merged.
+- App icons are loaded lazily for visible rows instead of being part of the startup scan.
+- Whitelist/blacklist and checkbox edits are pending UI changes only.
+- Box configuration and `box.service apply-apps` are executed only after the user presses **应用**.
