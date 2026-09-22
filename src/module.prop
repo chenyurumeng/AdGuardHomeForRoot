@@ -1,7 +1,7 @@
 id=AdGuardHome
 name=AdGuardHome for Root (Box Dual DNS Dev)
-version=20260922-boxdual-rc1
-versionCode=55
+version=20260922-boxdual-rc2
+versionCode=56
 author=twoone3 / chenyurumeng fork
-description=Box dual-DNS RC1: Domestic 5591 / Foreign 5592 / Stage17-20 regression passed
+description=Box dual-DNS RC2: dual-stack DNS bootstrap + isolated manager WebView sessions
 updateJson=https://raw.githubusercontent.com/chenyurumeng/AdGuardHomeForRoot/main/version.json
