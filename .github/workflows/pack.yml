@@ -1,4 +1,5 @@
 name: Pack AdGuardHomeForRoot
+# RC1 packaging trigger after Actions enablement
 
 on:
   workflow_dispatch:
