@@ -22,6 +22,8 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -61,6 +63,7 @@ public class MainActivity extends Activity {
     private int logKind = 0;
     private long refreshMs = 5000;
     private final int[] pageScrollY = new int[5];
+    private final Map<String, TextView> statusViews = new HashMap<>();
 
     private StatusSnapshot snapshot = StatusSnapshot.checking();
 
@@ -153,6 +156,7 @@ public class MainActivity extends Activity {
 
     private void renderPage() {
         if (content == null) return;
+        statusViews.clear();
         content.removeAllViews();
         switch (currentPage) {
             case 1:
@@ -195,9 +199,9 @@ public class MainActivity extends Activity {
         LinearLayout chips = new LinearLayout(this);
         chips.setOrientation(LinearLayout.HORIZONTAL);
         chips.setPadding(0, dp(16), 0, dp(4));
-        chips.addView(chip(snapshot.rootOk ? "ROOT OK" : "ROOT ?", snapshot.rootOk ? GREEN : RED));
-        chips.addView(chip(snapshot.boxModuleReady ? "BOX READY" : "BOX ?", snapshot.boxModuleReady ? GREEN : ORANGE));
-        chips.addView(chip(snapshot.aghModuleReady ? "AGH READY" : "AGH ?", snapshot.aghModuleReady ? GREEN : ORANGE));
+        chips.addView(bind("home.root", chip(snapshot.rootOk ? "ROOT OK" : "ROOT ?", snapshot.rootOk ? GREEN : RED)));
+        chips.addView(bind("home.boxReady", chip(snapshot.boxModuleReady ? "BOX READY" : "BOX ?", snapshot.boxModuleReady ? GREEN : ORANGE)));
+        chips.addView(bind("home.aghReady", chip(snapshot.aghModuleReady ? "AGH READY" : "AGH ?", snapshot.aghModuleReady ? GREEN : ORANGE)));
         root.addView(chips);
 
         root.addView(buildHealthCard());
@@ -227,13 +231,13 @@ public class MainActivity extends Activity {
 
         LinearLayout left = column();
         left.addView(text("系统健康", 18, true));
-        TextView detail = text(healthDetail(), 12, false);
+        TextView detail = bind("home.healthDetail", text(healthDetail(), 12, false));
         detail.setTextColor(MUTED);
         left.addView(detail);
         top.addView(left, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
 
-        top.addView(chip(healthLabel(), healthColor()));
+        top.addView(bind("home.healthChip", chip(healthLabel(), healthColor())));
         card.addView(top);
 
         LinearLayout stateRow = new LinearLayout(this);
@@ -241,13 +245,13 @@ public class MainActivity extends Activity {
         stateRow.setPadding(0, dp(14), 0, 0);
         stateRow.addView(routeCell("Box",
                 snapshot.boxUp ? safe(snapshot.boxBin, "core") : "DOWN",
-                snapshot.boxUp ? GREEN : RED), weight());
+                snapshot.boxUp ? GREEN : RED, "home.box"), weight());
         stateRow.addView(routeCell("Domestic", snapshot.domesticUp ? "5591" : "DOWN",
-                snapshot.domesticUp ? GREEN : RED), weight());
+                snapshot.domesticUp ? GREEN : RED, "home.domestic"), weight());
         stateRow.addView(routeCell("Foreign", snapshot.foreignUp ? "5592" : "DOWN",
-                snapshot.foreignUp ? GREEN : ORANGE), weight());
+                snapshot.foreignUp ? GREEN : ORANGE, "home.foreign"), weight());
         stateRow.addView(routeCell("Fallback", snapshot.port1053Up ? "1053" : "DOWN",
-                snapshot.port1053Up ? GREEN : ORANGE), weight());
+                snapshot.port1053Up ? GREEN : ORANGE, "home.fallback"), weight());
         card.addView(stateRow);
         return card;
     }
