@@ -178,7 +178,13 @@ public class MainActivity extends Activity {
     private void runAction(String label, String action) {
         Toast.makeText(this, label + "…", Toast.LENGTH_SHORT).show();
         io.execute(() -> {
-            RootShell.Result r = RootShell.exec(TOOL + " " + action);
+            String command = TOOL + " " + action;
+            if ("restart-domestic".equals(action)) {
+                command = TOOL + " restart-domestic || { " + TOOL + " stop-domestic; " + TOOL + " start-domestic; }";
+            } else if ("restart-foreign".equals(action)) {
+                command = TOOL + " restart-foreign || { " + TOOL + " stop-foreign; " + TOOL + " start-foreign; }";
+            }
+            RootShell.Result r = RootShell.exec(command);
             main.post(() -> {
                 String msg = r.ok() ? label + "完成" : label + "失败: " + r.output;
                 Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
