@@ -4,7 +4,7 @@ Standalone Android manager for the integrated **Box + Mihomo + dual AdGuard Home
 
 ## Version
 
-v0.3.0-rc3
+v0.4.0-rc1
 
 ## Architecture
 
@@ -86,3 +86,24 @@ Domestic (:3000), Foreign (:3001), and Mihomo (:9090) dashboards run in separate
 The data-directory suffix is configured once per process before WebView initialization. This avoids repeated `WebView.setDataDirectorySuffix()` calls when a dashboard Activity is reopened while its process remains alive, which would otherwise throw `IllegalStateException`.
 
 Cookies are explicitly flushed when leaving a dashboard so login state survives Activity recreation.
+
+
+## App routing manager
+
+The Box page now includes a native app routing manager inspired by BFR-style app selection:
+
+- Blacklist / Whitelist mode switching
+- Search by app label or package name
+- All / User / System filters
+- Multi-user entries stored in Box's native `userId:package.name` format
+- App selection writes `/data/adb/box/package.list.cfg`
+- Mode changes write `proxy_mode` in `/data/adb/box/settings.ini`
+- Changes are applied live through `box.service apply-apps`, which refreshes UID mapping, hot-reloads Mihomo, and renews Box routing/DNS rules
+
+Split-app DNS supports both semantics:
+- Whitelist: selected apps -> Foreign AGH; others -> Domestic AGH
+- Blacklist: selected apps -> Domestic AGH; others -> Foreign AGH
+
+## Fork update safety
+
+The Magisk module metadata no longer publishes an upstream `updateJson`, preventing the stock upstream module updater from replacing this fork. AdGuard Home instances are also launched with `--no-check-update`.
