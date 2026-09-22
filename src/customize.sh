@@ -115,6 +115,79 @@ else
   extract_all
 fi
 
+# Normalize dual-stack DNS settings for preserved dual-instance configs.
+# AGH bootstrap_dns is plain DNS only; keep both IPv4 and IPv6 bootstrap paths.
+migrate_dualstack_dns_config() {
+  local cfg="$1"
+  local profile="$2"
+  local tmp stamp
+
+  [ -f "$cfg" ] || return 0
+
+  stamp=$(date '+%Y%m%d%H%M%S')
+  cp -p "$cfg" "$cfg.bak.dualstack.$stamp" >/dev/null 2>&1 || true
+  tmp="$cfg.dualstack.tmp"
+
+  busybox awk -v profile="$profile" '
+    function emit_bind_hosts() {
+      print "  bind_hosts:"
+      print "    - 127.0.0.1"
+      print "    - ::1"
+    }
+    function emit_bootstrap() {
+      print "  bootstrap_dns:"
+      if (profile == "domestic") {
+        print "    - 223.5.5.5"
+        print "    - 223.6.6.6"
+        print "    - \"2400:3200::1\""
+        print "    - \"2400:3200:baba::1\""
+      } else {
+        print "    - 1.1.1.1"
+        print "    - 1.0.0.1"
+        print "    - \"2606:4700:4700::1111\""
+        print "    - \"2606:4700:4700::1001\""
+        print "    - 8.8.8.8"
+        print "    - 8.8.4.4"
+        print "    - \"2001:4860:4860::8888\""
+        print "    - \"2001:4860:4860::8844\""
+      }
+    }
+    BEGIN { skip = "" }
+    {
+      if ($0 ~ /^  bind_hosts:[[:space:]]*$/) {
+        emit_bind_hosts()
+        skip = "bind"
+        next
+      }
+      if ($0 ~ /^  bootstrap_dns:[[:space:]]*$/) {
+        emit_bootstrap()
+        skip = "bootstrap"
+        next
+      }
+      if (skip != "") {
+        if ($0 ~ /^  [A-Za-z0-9_]+:/) {
+          skip = ""
+        } else {
+          next
+        }
+      }
+      if ($0 ~ /^  aaaa_disabled:/) {
+        print "  aaaa_disabled: false"
+        next
+      }
+      if ($0 ~ /^  use_dns64:/) {
+        print "  use_dns64: false"
+        next
+      }
+      print
+    }
+  ' "$cfg" > "$tmp" && mv "$tmp" "$cfg"
+}
+
+for inst in domestic foreign; do
+  migrate_dualstack_dns_config "$AGH_DIR/instances/$inst/AdGuardHome.yaml" "$inst"
+done
+
 # Migrate keys added by the Box dual-DNS fork when an older settings.conf was kept.
 if [ -f "$AGH_DIR/settings.conf" ]; then
   grep -q '^integration_mode=' "$AGH_DIR/settings.conf" || echo 'integration_mode=box-dual' >> "$AGH_DIR/settings.conf"
