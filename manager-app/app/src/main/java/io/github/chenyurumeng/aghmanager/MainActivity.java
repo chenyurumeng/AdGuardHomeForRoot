@@ -527,7 +527,7 @@ public class MainActivity extends Activity {
     private View buildSettingsPage() {
         ScrollView scroll = pageScroll();
         LinearLayout root = pageColumn(scroll);
-        root.addView(pageTitle("设置", "Box & AGH Manager v0.3.0-rc1"));
+        root.addView(pageTitle("设置", "Box & AGH Manager v0.3.0-rc2"));
 
         root.addView(sectionTitle("自动刷新"));
         LinearLayout refreshCard = card();
@@ -574,7 +574,7 @@ public class MainActivity extends Activity {
 
         root.addView(sectionTitle("关于"));
         LinearLayout about = card();
-        about.addView(infoRow("版本", "0.3.0-rc1"));
+        about.addView(infoRow("版本", "0.3.0-rc2"));
         about.addView(infoRow("Box 后端", BOX_SERVICE));
         about.addView(infoRow("AGH 后端", AGH_TOOL));
         about.addView(infoRow("Mihomo Dashboard", snapshot.dashboardUrl()));
@@ -934,7 +934,16 @@ public class MainActivity extends Activity {
     }
 
     private void openWeb(String title, String url) {
-        Intent intent = new Intent(this, WebViewActivity.class);
+        Class<?> target = WebViewActivity.class;
+        if (url != null && url.contains(":3000")) {
+            target = DomesticWebViewActivity.class;
+        } else if (url != null && url.contains(":3001")) {
+            target = ForeignWebViewActivity.class;
+        } else if (url != null && url.contains(":9090")) {
+            target = MihomoWebViewActivity.class;
+        }
+
+        Intent intent = new Intent(this, target);
         intent.putExtra("title", title);
         intent.putExtra("url", url);
         startActivity(intent);
