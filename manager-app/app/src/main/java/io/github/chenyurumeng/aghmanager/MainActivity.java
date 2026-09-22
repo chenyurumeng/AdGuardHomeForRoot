@@ -527,7 +527,7 @@ public class MainActivity extends Activity {
     private View buildSettingsPage() {
         ScrollView scroll = pageScroll();
         LinearLayout root = pageColumn(scroll);
-        root.addView(pageTitle("设置", "Box & AGH Manager v0.3.0-rc2"));
+        root.addView(pageTitle("设置", "Box & AGH Manager v0.3.0-rc3"));
 
         root.addView(sectionTitle("自动刷新"));
         LinearLayout refreshCard = card();
@@ -574,7 +574,7 @@ public class MainActivity extends Activity {
 
         root.addView(sectionTitle("关于"));
         LinearLayout about = card();
-        about.addView(infoRow("版本", "0.3.0-rc2"));
+        about.addView(infoRow("版本", "0.3.0-rc3"));
         about.addView(infoRow("Box 后端", BOX_SERVICE));
         about.addView(infoRow("AGH 后端", AGH_TOOL));
         about.addView(infoRow("Mihomo Dashboard", snapshot.dashboardUrl()));
@@ -758,7 +758,7 @@ public class MainActivity extends Activity {
 
         io.execute(() -> {
             String command =
-                    "echo 'Box & AGH Manager v0.3.0-rc1'; " +
+                    "echo 'Box & AGH Manager v0.3.0-rc3'; " +
                     "echo '===== BOX STATUS ====='; " +
                     BOX_SERVICE + " status 2>&1 || true; " +
                     "echo '===== BOX STOP GUARD ====='; " +
