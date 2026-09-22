@@ -1,6 +1,7 @@
 package io.github.chenyurumeng.aghmanager.ui.box
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -50,6 +51,12 @@ private enum class ConnectionFilter(val label: String) {
     DIRECT("直连")
 }
 
+private enum class ConnectionSort(val label: String) {
+    DEFAULT("默认"),
+    TRAFFIC("流量"),
+    APP("应用")
+}
+
 private data class AppAggregate(
     val label: String,
     val count: Int,
@@ -62,7 +69,8 @@ private data class AppAggregate(
 fun MihomoConnectionsScreen(
     viewModel: MihomoConnectionsViewModel,
     contentPadding: PaddingValues,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onDetails: (String) -> Unit
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -71,11 +79,12 @@ fun MihomoConnectionsScreen(
     var confirmCloseAll by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf(ConnectionFilter.ALL) }
+    var sort by remember { mutableStateOf(ConnectionSort.DEFAULT) }
     var groupByApp by remember { mutableStateOf(false) }
 
-    val filteredConnections = remember(state.connections, query, filter) {
+    val filteredConnections = remember(state.connections, query, filter, sort) {
         val needle = query.trim().lowercase()
-        state.connections.filter { connection ->
+        val filtered = state.connections.filter { connection ->
             val matchesFilter = when (filter) {
                 ConnectionFilter.ALL -> true
                 ConnectionFilter.PROXY -> !connection.direct
@@ -92,17 +101,26 @@ fun MihomoConnectionsScreen(
 
             matchesFilter && matchesQuery
         }
+
+        when (sort) {
+            ConnectionSort.DEFAULT -> filtered
+            ConnectionSort.TRAFFIC -> filtered.sortedByDescending { it.download + it.upload }
+            ConnectionSort.APP -> filtered.sortedWith(
+                compareBy<MihomoConnection> { it.processLabel.lowercase() }
+                    .thenByDescending { it.download + it.upload }
+            )
+        }
     }
 
     val aggregates = remember(filteredConnections) {
         filteredConnections
             .groupBy { it.processLabel }
-            .map { (label, items) ->
+            .map { (label, values) ->
                 AppAggregate(
                     label = label,
-                    count = items.size,
-                    upload = items.sumOf { it.upload },
-                    download = items.sumOf { it.download }
+                    count = values.size,
+                    upload = values.sumOf { it.upload },
+                    download = values.sumOf { it.download }
                 )
             }
             .sortedWith(
@@ -152,9 +170,20 @@ fun MihomoConnectionsScreen(
                     onClick = { filter = item },
                     enabled = filter != item,
                     modifier = Modifier.weight(1f)
-                ) {
-                    Text(item.label)
-                }
+                ) { Text(item.label) }
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            ConnectionSort.entries.forEach { item ->
+                OutlinedButton(
+                    onClick = { sort = item },
+                    enabled = sort != item,
+                    modifier = Modifier.weight(1f)
+                ) { Text(item.label) }
             }
         }
 
@@ -194,16 +223,14 @@ fun MihomoConnectionsScreen(
             )
         }
 
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.weight(1f)
-        ) {
+        LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
             if (groupByApp) {
-                items(
-                    items = aggregates,
-                    key = { "app:" + it.label }
-                ) { aggregate ->
-                    AppAggregateRow(aggregate)
+                items(aggregates, key = { "app:" + it.label }) { aggregate ->
+                    AppAggregateRow(
+                        aggregate = aggregate,
+                        enabled = state.busyAction == null,
+                        onClose = { viewModel.closeByProcess(aggregate.label) }
+                    )
                     HorizontalDivider()
                 }
             } else {
@@ -214,7 +241,8 @@ fun MihomoConnectionsScreen(
                     ConnectionRow(
                         connection = connection,
                         enabled = state.busyAction == null,
-                        onClose = { viewModel.closeConnection(connection.id) }
+                        onClose = { viewModel.closeConnection(connection.id) },
+                        onDetails = { onDetails(connection.id) }
                     )
                     HorizontalDivider()
                 }
@@ -264,19 +292,14 @@ private fun RuntimeSummary(state: MihomoRuntimeUiState) {
         shape = MaterialTheme.shapes.large
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
+            Text(state.connections.size.toString() + " 个活动连接", style = MaterialTheme.typography.titleMedium)
             Text(
-                state.connections.size.toString() + " 个活动连接",
-                style = MaterialTheme.typography.titleMedium
-            )
-            Text(
-                "↓ " + formatRate(state.downloadBps) +
-                    "   ↑ " + formatRate(state.uploadBps),
+                "↓ " + formatRate(state.downloadBps) + "   ↑ " + formatRate(state.uploadBps),
                 modifier = Modifier.padding(top = 6.dp),
                 style = MaterialTheme.typography.titleSmall
             )
             Text(
-                "总计 ↓ " + formatBytes(state.downloadTotal) +
-                    " · ↑ " + formatBytes(state.uploadTotal),
+                "总计 ↓ " + formatBytes(state.downloadTotal) + " · ↑ " + formatBytes(state.uploadTotal),
                 modifier = Modifier.padding(top = 4.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -302,21 +325,25 @@ private fun RuntimeSummary(state: MihomoRuntimeUiState) {
 }
 
 @Composable
-private fun AppAggregateRow(aggregate: AppAggregate) {
+private fun AppAggregateRow(
+    aggregate: AppAggregate,
+    enabled: Boolean,
+    onClose: () -> Unit
+) {
     ListItem(
         headlineContent = {
-            Text(
-                aggregate.label,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Text(aggregate.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
         },
         supportingContent = {
             Text(
                 aggregate.count.toString() + " 个连接 · ↓ " +
-                    formatBytes(aggregate.download) + " · ↑ " +
-                    formatBytes(aggregate.upload)
+                    formatBytes(aggregate.download) + " · ↑ " + formatBytes(aggregate.upload)
             )
+        },
+        trailingContent = {
+            TextButton(onClick = onClose, enabled = enabled) {
+                Text("全部断开")
+            }
         }
     )
 }
@@ -325,15 +352,13 @@ private fun AppAggregateRow(aggregate: AppAggregate) {
 private fun ConnectionRow(
     connection: MihomoConnection,
     enabled: Boolean,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    onDetails: () -> Unit
 ) {
     ListItem(
+        modifier = Modifier.clickable(onClick = onDetails),
         headlineContent = {
-            Text(
-                connection.destinationLabel,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
+            Text(connection.destinationLabel, maxLines = 2, overflow = TextOverflow.Ellipsis)
         },
         supportingContent = {
             Column {
@@ -355,9 +380,7 @@ private fun ConnectionRow(
                 )
                 Text(
                     "↓ " + formatBytes(connection.download) +
-                        " · ↑ " + formatBytes(connection.upload) +
-                        if (connection.sourceIp.isBlank()) "" else
-                            " · " + connection.sourceIp + ":" + connection.sourcePort,
+                        " · ↑ " + formatBytes(connection.upload),
                     style = MaterialTheme.typography.bodySmall,
                     fontFamily = FontFamily.Monospace
                 )
@@ -367,18 +390,13 @@ private fun ConnectionRow(
             TextButton(
                 onClick = onClose,
                 enabled = enabled && connection.id.isNotBlank()
-            ) {
-                Text("关闭")
-            }
+            ) { Text("关闭") }
         }
     )
 }
 
-private fun formatRate(bytesPerSecond: Long): String =
-    formatBytes(bytesPerSecond) + "/s"
-
-private fun formatKb(kb: Long): String =
-    formatBytes(kb * 1024L)
+private fun formatRate(bytesPerSecond: Long): String = formatBytes(bytesPerSecond) + "/s"
+private fun formatKb(kb: Long): String = formatBytes(kb * 1024L)
 
 private fun formatBytes(bytes: Long): String {
     val value = bytes.coerceAtLeast(0L).toDouble()

@@ -135,6 +135,19 @@ fun MihomoSubscriptionsScreen(
                                     if (subscription.path.isBlank()) "" else " · " + subscription.path,
                                 style = MaterialTheme.typography.bodySmall
                             )
+                            val runtime = state.runtimeProviders[subscription.name]
+                            Text(
+                                when {
+                                    !subscription.enabled -> "运行态：已停用"
+                                    runtime != null -> {
+                                        "运行态：已加载 · " + runtime.proxyCount + " 节点" +
+                                            if (runtime.updatedAt.isBlank()) "" else " · 更新 " + runtime.updatedAt
+                                    }
+                                    else -> "运行态：未在 Mihomo Provider API 中发现"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     },
                     leadingContent = {

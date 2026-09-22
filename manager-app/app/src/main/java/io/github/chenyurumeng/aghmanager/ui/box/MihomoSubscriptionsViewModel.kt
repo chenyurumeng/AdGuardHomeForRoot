@@ -31,10 +31,17 @@ class MihomoSubscriptionsViewModel(
         viewModelScope.launch {
             _state.value = _state.value.copy(loading = true, error = "")
             repository.load()
-                .onSuccess {
+                .onSuccess { subscriptions ->
+                    val runtime = apiRepository.loadSnapshot()
+                        .getOrNull()
+                        ?.providers
+                        .orEmpty()
+                        .associateBy { it.name }
+
                     _state.value = _state.value.copy(
                         loading = false,
-                        subscriptions = it,
+                        subscriptions = subscriptions,
+                        runtimeProviders = runtime,
                         error = ""
                     )
                 }

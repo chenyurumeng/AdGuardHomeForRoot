@@ -7,10 +7,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.AlertDialog
@@ -24,7 +22,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,8 +32,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.chenyurumeng.aghmanager.model.BoxConfigUiState
 import io.github.chenyurumeng.aghmanager.model.DnsHijackMode
-import io.github.chenyurumeng.aghmanager.model.MihomoGroup
-import io.github.chenyurumeng.aghmanager.model.MihomoQuickUiState
 import io.github.chenyurumeng.aghmanager.model.NetworkMode
 import io.github.chenyurumeng.aghmanager.model.RoutingMode
 import io.github.chenyurumeng.aghmanager.model.SystemState
@@ -53,9 +48,9 @@ private enum class ConfigSelector {
 @Composable
 fun BoxScreen(
     viewModel: BoxViewModel,
-    mihomoViewModel: MihomoViewModel,
     contentPadding: PaddingValues,
     onManageApps: () -> Unit,
+    onMihomoControl: () -> Unit,
     onConnections: () -> Unit,
     onSubscriptions: () -> Unit,
     onOpenDashboard: (String) -> Unit
@@ -63,17 +58,10 @@ fun BoxScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
     val config by viewModel.configState.collectAsStateWithLifecycle()
-    val mihomo by mihomoViewModel.state.collectAsStateWithLifecycle()
-
     var selector by remember { mutableStateOf<ConfigSelector?>(null) }
-    var selectedGroupName by remember { mutableStateOf<String?>(null) }
     var confirmRestartApply by remember { mutableStateOf(false) }
 
     val controlsEnabled = !busy && !config.applying
-
-    LaunchedEffect(Unit) {
-        mihomoViewModel.refresh()
-    }
 
     Column(
         modifier = Modifier
@@ -193,11 +181,25 @@ fun BoxScreen(
                 )
             }
 
-            item { SectionHeader("Mihomo Quick Control") }
+            item { SectionHeader("Mihomo") }
+            item {
+                ListItem(
+                    headlineContent = { Text("Mihomo 控制中心") },
+                    supportingContent = { Text("策略组、节点、测速、Provider 与 DNS Cache") },
+                    modifier = Modifier.clickable(onClick = onMihomoControl),
+                    trailingContent = {
+                        androidx.compose.material3.Icon(
+                            Icons.Default.ChevronRight,
+                            contentDescription = "打开 Mihomo 控制中心"
+                        )
+                    }
+                )
+            }
+            item { Divider() }
             item {
                 ListItem(
                     headlineContent = { Text("活动连接与实时监控") },
-                    supportingContent = { Text("连接、规则、代理链、实时流量与 Mihomo 内存") },
+                    supportingContent = { Text("搜索、筛选、详情、按应用断开、实时流量与内存") },
                     modifier = Modifier.clickable(onClick = onConnections),
                     trailingContent = {
                         androidx.compose.material3.Icon(
@@ -220,100 +222,6 @@ fun BoxScreen(
                         )
                     }
                 )
-            }
-            item { Divider() }
-            item {
-                MihomoStatusCard(
-                    state = mihomo,
-                    onRefresh = mihomoViewModel::refresh
-                )
-            }
-
-            if (mihomo.available) {
-                items(
-                    items = mihomo.groups,
-                    key = { "group:" + it.name }
-                ) { group ->
-                    MihomoGroupRow(
-                        group = group,
-                        delay = mihomo.delays[group.now],
-                        enabled = mihomo.busyAction == null,
-                        onClick = { selectedGroupName = group.name }
-                    )
-                    Divider()
-                }
-
-                item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = mihomoViewModel::testAll,
-                            enabled = mihomo.busyAction == null && mihomo.groups.isNotEmpty(),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("全部测速")
-                        }
-                        OutlinedButton(
-                            onClick = mihomoViewModel::updateAllProviders,
-                            enabled = mihomo.busyAction == null && mihomo.providers.isNotEmpty(),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("更新全部订阅")
-                        }
-                    }
-                }
-
-                if (mihomo.providers.isNotEmpty()) {
-                    item { SectionHeader("Proxy Providers") }
-                    items(
-                        items = mihomo.providers,
-                        key = { "provider:" + it.name }
-                    ) { provider ->
-                        ListItem(
-                            headlineContent = { Text(provider.name) },
-                            supportingContent = {
-                                Text(
-                                    listOf(provider.vehicleType, provider.updatedAt)
-                                        .filter { it.isNotBlank() }
-                                        .joinToString(" · ")
-                                        .ifBlank { "Proxy Provider" }
-                                )
-                            },
-                            trailingContent = {
-                                TextButton(
-                                    onClick = { mihomoViewModel.updateProvider(provider.name) },
-                                    enabled = mihomo.busyAction == null
-                                ) {
-                                    Text("更新")
-                                }
-                            }
-                        )
-                    }
-                }
-
-                item {
-                    OutlinedButton(
-                        onClick = mihomoViewModel::flushDns,
-                        enabled = mihomo.busyAction == null,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 10.dp)
-                    ) {
-                        Text("清空 Mihomo DNS Cache")
-                    }
-                }
-                item {
-                    Text(
-                        "策略组切换、测速、Provider 更新与 DNS Cache 操作通过 Mihomo REST API 即时生效，不修改 settings.ini。",
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
             }
 
             item { SectionHeader("Mihomo Dashboard") }
@@ -404,26 +312,6 @@ fun BoxScreen(
         null -> Unit
     }
 
-    val selectedGroup = selectedGroupName?.let { name ->
-        mihomo.groups.firstOrNull { it.name == name }
-    }
-    if (selectedGroup != null) {
-        MihomoGroupDialog(
-            group = selectedGroup,
-            delays = mihomo.delays,
-            favorites = mihomo.favorites,
-            busy = mihomo.busyAction != null,
-            onTest = { mihomoViewModel.testGroup(selectedGroup) },
-            onFastest = { mihomoViewModel.selectFastest(selectedGroup) },
-            onToggleFavorite = mihomoViewModel::toggleFavorite,
-            onSelect = { proxy ->
-                selectedGroupName = null
-                mihomoViewModel.select(selectedGroup.name, proxy)
-            },
-            onDismiss = { selectedGroupName = null }
-        )
-    }
-
     if (confirmRestartApply) {
         AlertDialog(
             onDismissRequest = { confirmRestartApply = false },
@@ -446,209 +334,6 @@ fun BoxScreen(
             }
         )
     }
-}
-
-@Composable
-private fun MihomoStatusCard(
-    state: MihomoQuickUiState,
-    onRefresh: () -> Unit
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-        tonalElevation = 2.dp,
-        shape = MaterialTheme.shapes.large
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                when {
-                    state.loading -> "正在连接 Mihomo Controller…"
-                    state.available -> "Controller Ready"
-                    else -> "Controller Unavailable"
-                },
-                style = MaterialTheme.typography.titleMedium,
-                color = if (state.available) StatusHealthy else if (state.loading) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    StatusError
-                }
-            )
-
-            if (state.available) {
-                Text(
-                    state.controller +
-                        if (state.version.isBlank()) "" else " · " + state.version +
-                        if (state.authenticated) " · Bearer auth" else "",
-                    modifier = Modifier.padding(top = 4.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                if (state.busyAction != null) {
-                    Text(
-                        state.busyAction,
-                        modifier = Modifier.padding(top = 6.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            } else if (state.error.isNotBlank()) {
-                Text(
-                    state.error,
-                    modifier = Modifier.padding(top = 4.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
-
-            if (!state.loading) {
-                TextButton(
-                    onClick = onRefresh,
-                    enabled = state.busyAction == null,
-                    modifier = Modifier.padding(top = 4.dp)
-                ) {
-                    Text("刷新 Mihomo 状态")
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MihomoGroupRow(
-    group: MihomoGroup,
-    delay: Int?,
-    enabled: Boolean,
-    onClick: () -> Unit
-) {
-    ListItem(
-        modifier = Modifier.clickable(enabled = enabled, onClick = onClick),
-        headlineContent = { Text(group.name) },
-        supportingContent = {
-            Text(
-                group.now.ifBlank { group.type } +
-                    if (delay != null) " · " + delay + " ms" else ""
-            )
-        },
-        trailingContent = {
-            androidx.compose.material3.Icon(
-                Icons.Default.ChevronRight,
-                contentDescription = "管理 " + group.name
-            )
-        }
-    )
-}
-
-@Composable
-private fun MihomoGroupDialog(
-    group: MihomoGroup,
-    delays: Map<String, Int>,
-    favorites: Set<String>,
-    busy: Boolean,
-    onTest: () -> Unit,
-    onFastest: () -> Unit,
-    onToggleFavorite: (String) -> Unit,
-    onSelect: (String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    val sortedNodes = remember(group.all, favorites, delays) {
-        group.all.sortedWith(
-            compareByDescending<String> { it in favorites }
-                .thenBy { delays[it] ?: Int.MAX_VALUE }
-                .thenBy { it.lowercase() }
-        )
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Column {
-                Text(group.name)
-                Text(
-                    group.type + " · 当前 " + group.now.ifBlank { "-" },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        },
-        text = {
-            Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = onTest,
-                        enabled = !busy && group.all.isNotEmpty(),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("测速")
-                    }
-                    OutlinedButton(
-                        onClick = onFastest,
-                        enabled = !busy && group.selectable && group.all.isNotEmpty(),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("最快节点")
-                    }
-                }
-
-                Text(
-                    "收藏节点优先显示；有测速结果时再按延迟排序。",
-                    modifier = Modifier.padding(top = 6.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 420.dp)
-                        .padding(top = 8.dp)
-                ) {
-                    items(sortedNodes, key = { it }) { proxy ->
-                        val selected = proxy == group.now
-                        val favorite = proxy in favorites
-                        ListItem(
-                            modifier = Modifier.clickable(
-                                enabled = !busy && group.selectable
-                            ) {
-                                onSelect(proxy)
-                            },
-                            headlineContent = {
-                                Text((if (favorite) "★ " else "") + proxy)
-                            },
-                            supportingContent = {
-                                val delay = delays[proxy]
-                                Text(
-                                    listOfNotNull(
-                                        delay?.let { it.toString() + " ms" },
-                                        if (selected) "当前节点" else null
-                                    ).joinToString(" · ").ifBlank { group.type }
-                                )
-                            },
-                            trailingContent = {
-                                TextButton(
-                                    onClick = { onToggleFavorite(proxy) },
-                                    enabled = !busy
-                                ) {
-                                    Text(if (favorite) "取消收藏" else "收藏")
-                                }
-                            }
-                        )
-                    }
-                }
-                if (!group.selectable) {
-                    Text(
-                        "该组类型为 " + group.type + "，本页只提供测速和收藏；节点固定操作仅对 Selector 开放。",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("关闭") }
-        }
-    )
 }
 
 @Composable

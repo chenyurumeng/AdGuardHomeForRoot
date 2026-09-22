@@ -15,7 +15,8 @@ data class MihomoGroup(
 data class MihomoProvider(
     val name: String,
     val vehicleType: String = "",
-    val updatedAt: String = ""
+    val updatedAt: String = "",
+    val proxyCount: Int = 0
 )
 
 data class MihomoSnapshot(
@@ -100,6 +101,14 @@ data class MihomoRuntimeUiState(
     val error: String = ""
 )
 
+data class MihomoConnectionDetailUiState(
+    val loading: Boolean = true,
+    val connection: MihomoConnection? = null,
+    val missing: Boolean = false,
+    val busy: Boolean = false,
+    val error: String = ""
+)
+
 data class MihomoSubscription(
     val name: String,
     val url: String,
@@ -123,5 +132,6 @@ data class MihomoSubscriptionsUiState(
     val loading: Boolean = true,
     val saving: Boolean = false,
     val subscriptions: List<MihomoSubscription> = emptyList(),
+    val runtimeProviders: Map<String, MihomoProvider> = emptyMap(),
     val error: String = ""
 )

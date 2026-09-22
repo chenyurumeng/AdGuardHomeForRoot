@@ -70,7 +70,9 @@ fun AppNavigation(
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route ?: "home"
     val isSubpage = currentRoute == "appRouting" ||
+        currentRoute == "mihomoControl" ||
         currentRoute == "mihomoConnections" ||
+        currentRoute?.startsWith("mihomoConnection/") == true ||
         currentRoute == "mihomoSubscriptions"
     val current = destinations.firstOrNull { it.route == currentRoute }
         ?: destinations.firstOrNull { it.route == "box" }
@@ -93,7 +95,7 @@ fun AppNavigation(
                             Text(current.label)
                             if (currentRoute == "home") {
                                 Text(
-                                    "Box & AGH Manager · v0.5.0-rc5",
+                                    "Box & AGH Manager · v0.5.0-rc6",
                                     style = androidx.compose.material3.MaterialTheme.typography.labelSmall
                                 )
                             }
@@ -143,21 +145,12 @@ fun AppNavigation(
                         boxSettingsRepository
                     )
                 )
-                val mihomoVm: MihomoViewModel = viewModel(
-                    factory = MihomoViewModel.Factory(
-                        mihomoApiRepository,
-                        mihomoPreferencesRepository
-                    )
-                )
                 LaunchedEffect(vm) { vm.messages.collect { snackbarHostState.showSnackbar(it) } }
-                LaunchedEffect(mihomoVm) {
-                    mihomoVm.messages.collect { snackbarHostState.showSnackbar(it) }
-                }
                 BoxScreen(
                     viewModel = vm,
-                    mihomoViewModel = mihomoVm,
                     contentPadding = innerPadding,
                     onManageApps = { navController.navigate("appRouting") },
+                    onMihomoControl = { navController.navigate("mihomoControl") },
                     onConnections = { navController.navigate("mihomoConnections") },
                     onSubscriptions = { navController.navigate("mihomoSubscriptions") },
                     onOpenDashboard = onOpenMihomoDashboard
@@ -170,6 +163,23 @@ fun AppNavigation(
                 LaunchedEffect(vm) { vm.messages.collect { snackbarHostState.showSnackbar(it) } }
                 AppRoutingScreen(viewModel = vm, contentPadding = innerPadding, onBack = { navController.popBackStack() })
             }
+            composable("mihomoControl") {
+                val vm: MihomoViewModel = viewModel(
+                    factory = MihomoViewModel.Factory(
+                        mihomoApiRepository,
+                        mihomoPreferencesRepository
+                    )
+                )
+                LaunchedEffect(vm) {
+                    vm.messages.collect { snackbarHostState.showSnackbar(it) }
+                }
+                MihomoControlScreen(
+                    viewModel = vm,
+                    contentPadding = innerPadding,
+                    onBack = { navController.popBackStack() },
+                    onOpenDashboard = { onOpenMihomoDashboard("http://127.0.0.1:9090/ui/") }
+                )
+            }
             composable("mihomoConnections") {
                 val vm: MihomoConnectionsViewModel = viewModel(
                     factory = MihomoConnectionsViewModel.Factory(mihomoApiRepository)
@@ -178,6 +188,33 @@ fun AppNavigation(
                     vm.messages.collect { snackbarHostState.showSnackbar(it) }
                 }
                 MihomoConnectionsScreen(
+                    viewModel = vm,
+                    contentPadding = innerPadding,
+                    onBack = { navController.popBackStack() },
+                    onDetails = { id ->
+                        navController.navigate("mihomoConnection/" + android.net.Uri.encode(id))
+                    }
+                )
+            }
+            composable(
+                route = "mihomoConnection/{connectionId}",
+                arguments = listOf(
+                    androidx.navigation.navArgument("connectionId") {
+                        type = androidx.navigation.NavType.StringType
+                    }
+                )
+            ) { entry ->
+                val connectionId = entry.arguments?.getString("connectionId").orEmpty()
+                val vm: MihomoConnectionDetailViewModel = viewModel(
+                    factory = MihomoConnectionDetailViewModel.Factory(
+                        connectionId,
+                        mihomoApiRepository
+                    )
+                )
+                LaunchedEffect(vm) {
+                    vm.messages.collect { snackbarHostState.showSnackbar(it) }
+                }
+                MihomoConnectionDetailScreen(
                     viewModel = vm,
                     contentPadding = innerPadding,
                     onBack = { navController.popBackStack() }

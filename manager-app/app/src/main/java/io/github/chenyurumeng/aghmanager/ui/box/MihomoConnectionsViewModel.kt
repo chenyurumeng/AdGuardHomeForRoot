@@ -101,6 +101,34 @@ class MihomoConnectionsViewModel(
         }
     }
 
+    fun closeByProcess(processLabel: String) {
+        if (_state.value.busyAction != null) return
+        val ids = _state.value.connections
+            .filter { it.processLabel == processLabel }
+            .map { it.id }
+            .filter { it.isNotBlank() }
+
+        if (ids.isEmpty()) {
+            _messages.tryEmit("该应用当前没有可关闭的连接")
+            return
+        }
+
+        viewModelScope.launch {
+            _state.value = _state.value.copy(
+                busyAction = "正在关闭 " + processLabel + " 的连接…"
+            )
+            repository.closeConnections(ids)
+                .onSuccess { count ->
+                    _messages.emit("已关闭 " + count + " 条 " + processLabel + " 连接")
+                    refreshNow()
+                }
+                .onFailure {
+                    _messages.emit(it.message ?: "关闭应用连接失败")
+                }
+            _state.value = _state.value.copy(busyAction = null)
+        }
+    }
+
     class Factory(
         private val repository: MihomoApiRepository
     ) : ViewModelProvider.Factory {

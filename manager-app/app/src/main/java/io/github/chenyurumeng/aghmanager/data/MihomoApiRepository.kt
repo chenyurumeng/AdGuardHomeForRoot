@@ -115,6 +115,22 @@ class MihomoApiRepository {
         }
     }
 
+    suspend fun closeConnections(ids: List<String>): Result<Int> = withContext(Dispatchers.IO) {
+        runCatching {
+            val endpoint = loadEndpoint().getOrThrow()
+            var closed = 0
+            ids.filter { it.isNotBlank() }.distinct().forEach { id ->
+                request(
+                    endpoint = endpoint,
+                    method = "DELETE",
+                    path = "/connections/" + encode(id)
+                ).getOrThrow()
+                closed++
+            }
+            closed
+        }
+    }
+
     suspend fun selectProxy(groupName: String, proxyName: String): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
@@ -315,7 +331,8 @@ class MihomoApiRepository {
             values += MihomoProvider(
                 name = name,
                 vehicleType = item.optString("vehicleType", item.optString("type", "")),
-                updatedAt = item.optString("updatedAt", "")
+                updatedAt = item.optString("updatedAt", ""),
+                proxyCount = item.optJSONArray("proxies")?.length() ?: 0
             )
         }
 
