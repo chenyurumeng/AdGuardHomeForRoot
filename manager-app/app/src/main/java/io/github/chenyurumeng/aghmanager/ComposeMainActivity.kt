@@ -17,6 +17,7 @@ class ComposeMainActivity : ComponentActivity() {
     private val appRepository by lazy { AppRepository(applicationContext) }
     private val settingsRepository by lazy { SettingsRepository(applicationContext) }
     private val boxSettingsRepository = BoxSettingsRepository()
+    private val mihomoApiRepository = MihomoApiRepository()
     private val logRepository = LogRepository()
     private val diagnosticRepository = DiagnosticRepository()
     private val orchestrator = SystemOrchestrator(statusRepository)
@@ -34,6 +35,7 @@ class ComposeMainActivity : ComponentActivity() {
                     appRepository = appRepository,
                     settingsRepository = settingsRepository,
                     boxSettingsRepository = boxSettingsRepository,
+                    mihomoApiRepository = mihomoApiRepository,
                     logRepository = logRepository,
                     diagnosticRepository = diagnosticRepository,
                     orchestrator = orchestrator,

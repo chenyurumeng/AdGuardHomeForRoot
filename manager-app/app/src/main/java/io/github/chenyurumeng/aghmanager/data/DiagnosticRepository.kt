@@ -3,7 +3,7 @@ package io.github.chenyurumeng.aghmanager.data
 class DiagnosticRepository {
     suspend fun generate(): ShellResult {
         val command =
-            "echo 'Box & AGH Manager v0.5.0-rc2'; " +
+            "echo 'Box & AGH Manager v0.5.0-rc3'; " +
                 "echo '===== BOX STATUS ====='; " +
                 StatusRepository.BOX_SERVICE + " status 2>&1 || true; " +
                 "echo '===== BOX STOP GUARD ====='; " +
