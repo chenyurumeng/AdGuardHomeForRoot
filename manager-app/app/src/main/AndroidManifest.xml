@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+
+    <application
+        android:allowBackup="false"
+        android:usesCleartextTraffic="true"
+        android:label="Box &amp; AGH Manager"
+        android:icon="@drawable/ic_agh_manager"
+        android:theme="@android:style/Theme.Material.NoActionBar">
+        <activity
+            android:name=".AppRoutingActivity"
+            android:exported="false" />
+        <activity
+            android:name=".WebViewActivity"
+            android:exported="false" />
+        <activity
+            android:name=".DomesticWebViewActivity"
+            android:process=":agh_domestic"
+            android:exported="false" />
+        <activity
+            android:name=".ForeignWebViewActivity"
+            android:process=":agh_foreign"
+            android:exported="false" />
+        <activity
+            android:name=".MihomoWebViewActivity"
+            android:process=":mihomo_web"
+            android:exported="false" />
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

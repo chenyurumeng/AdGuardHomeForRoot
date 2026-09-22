@@ -1,7 +1,6 @@
 id=AdGuardHome
 name=AdGuardHome for Root (Box Dual DNS Dev)
-version=20260922-boxdual-rc1
-versionCode=55
+version=20260922-boxdual-rc3
+versionCode=57
 author=twoone3 / chenyurumeng fork
-description=Box dual-DNS RC1: Domestic 5591 / Foreign 5592 / Stage17-20 regression passed
-updateJson=https://raw.githubusercontent.com/chenyurumeng/AdGuardHomeForRoot/main/version.json
+description=Box dual-DNS RC3: Foreign AGH -> Mihomo 1053, preserved-config migration, isolated manager WebViews

@@ -1,0 +1,32 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'io.github.chenyurumeng.aghmanager'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "io.github.chenyurumeng.aghmanager"
+        minSdk 26
+        targetSdk 35
+        versionCode 8
+        versionName "0.4.0-rc3"
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
+        }
+        release {
+            minifyEnabled false
+            shrinkResources false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
