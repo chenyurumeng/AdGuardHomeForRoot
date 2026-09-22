@@ -404,26 +404,26 @@ public class MainActivity extends Activity {
         LinearLayout top = rowLayout();
         LinearLayout name = column();
         name.addView(text("Box Service", 20, true));
-        TextView version = text(TextUtils.isEmpty(snapshot.boxVersion)
+        TextView version = bind("box.version", text(TextUtils.isEmpty(snapshot.boxVersion)
                 ? safe(snapshot.boxBin, "core")
-                : snapshot.boxVersion, 11, false);
+                : snapshot.boxVersion, 11, false));
         version.setTextColor(MUTED);
         name.addView(version);
         top.addView(name, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        top.addView(chip(snapshot.boxUp ? "RUNNING" : "STOPPED",
-                snapshot.boxUp ? GREEN : RED));
+        top.addView(bind("box.status", chip(snapshot.boxUp ? "RUNNING" : "STOPPED",
+                snapshot.boxUp ? GREEN : RED)));
         status.addView(top);
 
-        status.addView(infoRow("Core", safe(snapshot.boxBin, "-")));
-        status.addView(infoRow("PID", safe(snapshot.boxPid, "-")));
-        status.addView(infoRow("Proxy Mode", safe(snapshot.proxyMode, "-")));
-        status.addView(infoRow("Network Mode", safe(snapshot.networkMode, "-")));
-        status.addView(infoRow("DNS Hijack", safe(snapshot.dnsHijackMode, "-")));
-        status.addView(infoRow("IPv6", safe(snapshot.ipv6, "-")));
-        status.addView(infoRow("Mihomo DNS", snapshot.port1053Up ? ":1053 listening" : ":1053 down"));
-        status.addView(infoRow("Controller", safe(snapshot.boxController, "127.0.0.1:9090")));
-        status.addView(infoRow("Stop Guard", snapshot.userStopped ? "present" : "clear"));
+        status.addView(infoRow("Core", safe(snapshot.boxBin, "-"), "box.core"));
+        status.addView(infoRow("PID", safe(snapshot.boxPid, "-"), "box.pid"));
+        status.addView(infoRow("Proxy Mode", safe(snapshot.proxyMode, "-"), "box.proxyMode"));
+        status.addView(infoRow("Network Mode", safe(snapshot.networkMode, "-"), "box.networkMode"));
+        status.addView(infoRow("DNS Hijack", safe(snapshot.dnsHijackMode, "-"), "box.dnsHijack"));
+        status.addView(infoRow("IPv6", safe(snapshot.ipv6, "-"), "box.ipv6"));
+        status.addView(infoRow("Mihomo DNS", snapshot.port1053Up ? ":1053 listening" : ":1053 down", "box.mihomoDns"));
+        status.addView(infoRow("Controller", safe(snapshot.boxController, "127.0.0.1:9090"), "box.controller"));
+        status.addView(infoRow("Stop Guard", snapshot.userStopped ? "present" : "clear", "box.stopGuard"));
         root.addView(status);
 
         root.addView(sectionTitle("应用分流"));
@@ -438,7 +438,7 @@ public class MainActivity extends Activity {
         routingTitle.addView(routingDesc);
         routingTop.addView(routingTitle, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        routingTop.addView(chip(safe(snapshot.proxyMode, "?").toUpperCase(), BLUE));
+        routingTop.addView(bind("box.routingMode", chip(safe(snapshot.proxyMode, "?").toUpperCase(), BLUE)));
         routing.addView(routingTop);
 
         TextView manageApps = largeButton("管理应用分流", PURPLE);
@@ -498,14 +498,14 @@ public class MainActivity extends Activity {
         root.addView(all);
 
         root.addView(sectionTitle("Domestic"));
-        root.addView(aghInstanceCard(true));
+        root.addView(aghInstanceCard(true, "agh.domestic"));
 
         root.addView(sectionTitle("Foreign"));
-        root.addView(aghInstanceCard(false));
+        root.addView(aghInstanceCard(false, "agh.foreign"));
         return scroll;
     }
 
-    private View aghInstanceCard(boolean domestic) {
+    private View aghInstanceCard(boolean domestic, String bindKey) {
         String name = domestic ? "Domestic" : "Foreign";
         String dns = domestic ? "5591" : "5592";
         String web = domestic ? "3000" : "3001";
@@ -516,13 +516,13 @@ public class MainActivity extends Activity {
         LinearLayout top = rowLayout();
         LinearLayout title = column();
         title.addView(text(name, 19, true));
-        TextView info = text("DNS :" + dns + " · Web :" + web
-                + (TextUtils.isEmpty(pid) ? "" : " · PID " + pid), 12, false);
+        TextView info = bind(bindKey + ".info", text("DNS :" + dns + " · Web :" + web
+                + (TextUtils.isEmpty(pid) ? "" : " · PID " + pid), 12, false));
         info.setTextColor(MUTED);
         title.addView(info);
         top.addView(title, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        top.addView(chip(up ? "RUNNING" : "STOPPED", up ? GREEN : RED));
+        top.addView(bind(bindKey + ".status", chip(up ? "RUNNING" : "STOPPED", up ? GREEN : RED)));
         card.addView(top);
 
         LinearLayout buttons = actionRow(
@@ -787,6 +787,30 @@ public class MainActivity extends Activity {
                     snapshot.port1053Up ? GREEN : ORANGE);
             setBoundRouteCell("home.port9090", snapshot.port9090Up ? "API" : "DOWN",
                     snapshot.port9090Up ? GREEN : ORANGE);
+        } else if (currentPage == 1) {
+            setBoundText("box.version", TextUtils.isEmpty(snapshot.boxVersion)
+                    ? safe(snapshot.boxBin, "core") : snapshot.boxVersion);
+            setBoundChip("box.status", snapshot.boxUp ? "RUNNING" : "STOPPED",
+                    snapshot.boxUp ? GREEN : RED);
+            setBoundText("box.core", safe(snapshot.boxBin, "-"));
+            setBoundText("box.pid", safe(snapshot.boxPid, "-"));
+            setBoundText("box.proxyMode", safe(snapshot.proxyMode, "-"));
+            setBoundText("box.networkMode", safe(snapshot.networkMode, "-"));
+            setBoundText("box.dnsHijack", safe(snapshot.dnsHijackMode, "-"));
+            setBoundText("box.ipv6", safe(snapshot.ipv6, "-"));
+            setBoundText("box.mihomoDns", snapshot.port1053Up ? ":1053 listening" : ":1053 down");
+            setBoundText("box.controller", safe(snapshot.boxController, "127.0.0.1:9090"));
+            setBoundText("box.stopGuard", snapshot.userStopped ? "present" : "clear");
+            setBoundChip("box.routingMode", safe(snapshot.proxyMode, "?").toUpperCase(), BLUE);
+        } else if (currentPage == 2) {
+            setBoundText("agh.domestic.info", "DNS :5591 · Web :3000"
+                    + (TextUtils.isEmpty(snapshot.domesticPid) ? "" : " · PID " + snapshot.domesticPid));
+            setBoundChip("agh.domestic.status", snapshot.domesticUp ? "RUNNING" : "STOPPED",
+                    snapshot.domesticUp ? GREEN : RED);
+            setBoundText("agh.foreign.info", "DNS :5592 · Web :3001"
+                    + (TextUtils.isEmpty(snapshot.foreignPid) ? "" : " · PID " + snapshot.foreignPid));
+            setBoundChip("agh.foreign.status", snapshot.foreignUp ? "RUNNING" : "STOPPED",
+                    snapshot.foreignUp ? GREEN : RED);
         }
     }
 
@@ -1109,6 +1133,10 @@ public class MainActivity extends Activity {
     }
 
     private View infoRow(String key, String value) {
+        return infoRow(key, value, null);
+    }
+
+    private View infoRow(String key, String value, String bindKey) {
         LinearLayout row = rowLayout();
         row.setPadding(0, dp(8), 0, dp(8));
 
@@ -1120,6 +1148,7 @@ public class MainActivity extends Activity {
         TextView v = text(value, 13, false);
         v.setGravity(Gravity.END);
         v.setTextIsSelectable(true);
+        if (bindKey != null) bind(bindKey, v);
         row.addView(v, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.62f));
         return row;
