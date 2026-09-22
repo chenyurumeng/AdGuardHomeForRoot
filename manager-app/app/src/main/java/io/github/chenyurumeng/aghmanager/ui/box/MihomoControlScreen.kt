@@ -47,7 +47,7 @@ fun MihomoControlScreen(
     viewModel: MihomoViewModel,
     contentPadding: PaddingValues,
     onBack: () -> Unit,
-    onOpenDashboard: () -> Unit
+    onOpenDashboard: (String) -> Unit
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var selectedGroupName by remember { mutableStateOf<String?>(null) }
@@ -165,7 +165,16 @@ fun MihomoControlScreen(
 
             item {
                 OutlinedButton(
-                    onClick = onOpenDashboard,
+                    onClick = {
+                        val controller = state.controller.trimEnd('/')
+                        val url = when {
+                            controller.isBlank() -> "http://127.0.0.1:9090/ui/"
+                            controller.endsWith("/ui") -> controller + "/"
+                            controller.endsWith("/ui/") -> controller
+                            else -> controller + "/ui/"
+                        }
+                        onOpenDashboard(url)
+                    },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
                 ) { Text("打开完整 Dashboard") }
             }

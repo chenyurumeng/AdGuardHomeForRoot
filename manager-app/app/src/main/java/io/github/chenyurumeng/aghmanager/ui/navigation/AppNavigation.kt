@@ -177,7 +177,7 @@ fun AppNavigation(
                     viewModel = vm,
                     contentPadding = innerPadding,
                     onBack = { navController.popBackStack() },
-                    onOpenDashboard = { onOpenMihomoDashboard("http://127.0.0.1:9090/ui/") }
+                    onOpenDashboard = onOpenMihomoDashboard
                 )
             }
             composable("mihomoConnections") {
@@ -204,7 +204,9 @@ fun AppNavigation(
                     }
                 )
             ) { entry ->
-                val connectionId = entry.arguments?.getString("connectionId").orEmpty()
+                val connectionId = android.net.Uri.decode(
+                    entry.arguments?.getString("connectionId").orEmpty()
+                )
                 val vm: MihomoConnectionDetailViewModel = viewModel(
                     factory = MihomoConnectionDetailViewModel.Factory(
                         connectionId,
