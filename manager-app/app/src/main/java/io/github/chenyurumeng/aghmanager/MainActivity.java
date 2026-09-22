@@ -60,6 +60,7 @@ public class MainActivity extends Activity {
     private int currentPage = 0;
     private int logKind = 0;
     private long refreshMs = 5000;
+    private final int[] pageScrollY = new int[5];
 
     private StatusSnapshot snapshot = StatusSnapshot.checking();
 
@@ -106,6 +107,7 @@ public class MainActivity extends Activity {
             item.setGravity(Gravity.CENTER);
             item.setTextColor(i == 0 ? BLUE : MUTED);
             item.setOnClickListener(v -> {
+                saveCurrentScrollPosition();
                 currentPage = page;
                 updateNav();
                 renderPage();
@@ -126,8 +128,27 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void saveCurrentScrollPosition() {
+        if (content == null || content.getChildCount() == 0) return;
+        View child = content.getChildAt(0);
+        if (child instanceof ScrollView && currentPage >= 0 && currentPage < pageScrollY.length) {
+            pageScrollY[currentPage] = ((ScrollView) child).getScrollY();
+        }
+    }
+
+    private void restoreCurrentScrollPosition() {
+        if (content == null || content.getChildCount() == 0) return;
+        View child = content.getChildAt(0);
+        if (child instanceof ScrollView && currentPage >= 0 && currentPage < pageScrollY.length) {
+            final ScrollView scroll = (ScrollView) child;
+            final int y = pageScrollY[currentPage];
+            scroll.post(() -> scroll.scrollTo(0, y));
+        }
+    }
+
     private void renderPage() {
         if (content == null) return;
+        saveCurrentScrollPosition();
         content.removeAllViews();
         switch (currentPage) {
             case 1:
@@ -146,6 +167,7 @@ public class MainActivity extends Activity {
                 content.addView(buildHomePage());
                 break;
         }
+        restoreCurrentScrollPosition();
     }
 
     private View buildHomePage() {
@@ -413,7 +435,7 @@ public class MainActivity extends Activity {
         routing.addView(manageApps, map);
 
         TextView liveHint = text(
-                "支持搜索、User/System 筛选、多用户/分身 UID；勾选或切换模式后实时热应用。",
+                "支持搜索、User/System 筛选、多用户/分身 UID；修改后点击“应用”才写入 Box。",
                 11, false);
         liveHint.setTextColor(MUTED);
         liveHint.setPadding(dp(2), dp(10), dp(2), 0);
@@ -570,7 +592,7 @@ public class MainActivity extends Activity {
     private View buildSettingsPage() {
         ScrollView scroll = pageScroll();
         LinearLayout root = pageColumn(scroll);
-        root.addView(pageTitle("设置", "Box & AGH Manager v0.4.0-rc1"));
+        root.addView(pageTitle("设置", "Box & AGH Manager v0.4.0-rc2"));
 
         root.addView(sectionTitle("自动刷新"));
         LinearLayout refreshCard = card();
@@ -617,7 +639,7 @@ public class MainActivity extends Activity {
 
         root.addView(sectionTitle("关于"));
         LinearLayout about = card();
-        about.addView(infoRow("版本", "0.4.0-rc1"));
+        about.addView(infoRow("版本", "0.4.0-rc2"));
         about.addView(infoRow("Box 后端", BOX_SERVICE));
         about.addView(infoRow("AGH 后端", AGH_TOOL));
         about.addView(infoRow("Mihomo Dashboard", snapshot.dashboardUrl()));
@@ -801,7 +823,7 @@ public class MainActivity extends Activity {
 
         io.execute(() -> {
             String command =
-                    "echo 'Box & AGH Manager v0.4.0-rc1'; " +
+                    "echo 'Box & AGH Manager v0.4.0-rc2'; " +
                     "echo '===== BOX STATUS ====='; " +
                     BOX_SERVICE + " status 2>&1 || true; " +
                     "echo '===== BOX STOP GUARD ====='; " +
