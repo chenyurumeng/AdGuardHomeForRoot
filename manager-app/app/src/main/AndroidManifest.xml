@@ -12,6 +12,18 @@
             android:name=".WebViewActivity"
             android:exported="false" />
         <activity
+            android:name=".DomesticWebViewActivity"
+            android:process=":agh_domestic"
+            android:exported="false" />
+        <activity
+            android:name=".ForeignWebViewActivity"
+            android:process=":agh_foreign"
+            android:exported="false" />
+        <activity
+            android:name=".MihomoWebViewActivity"
+            android:process=":mihomo_web"
+            android:exported="false" />
+        <activity
             android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
