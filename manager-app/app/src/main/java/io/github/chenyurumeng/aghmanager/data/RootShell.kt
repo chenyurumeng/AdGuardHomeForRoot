@@ -23,18 +23,21 @@ object RootShell {
         withContext(Dispatchers.IO) {
             var process: Process? = null
             try {
-                process = ProcessBuilder("su", "-c", command)
+                val runningProcess = ProcessBuilder("su", "-c", command)
                     .redirectErrorStream(true)
                     .start()
+                process = runningProcess
 
                 coroutineScope {
                     val reader = async(Dispatchers.IO) {
-                        process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+                        runningProcess.inputStream
+                            .bufferedReader(StandardCharsets.UTF_8)
+                            .use { it.readText() }
                     }
 
-                    val finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS)
+                    val finished = runningProcess.waitFor(timeoutSeconds, TimeUnit.SECONDS)
                     if (!finished) {
-                        process.destroyForcibly()
+                        runningProcess.destroyForcibly()
                         val partial = withTimeoutOrNull(2_000L) { reader.await() }.orEmpty()
                         ShellResult(
                             exitCode = 124,
@@ -47,7 +50,7 @@ object RootShell {
                         )
                     } else {
                         ShellResult(
-                            exitCode = process.exitValue(),
+                            exitCode = runningProcess.exitValue(),
                             stdout = reader.await().trim()
                         )
                     }
