@@ -9,33 +9,12 @@
         android:label="Box &amp; AGH Manager"
         android:icon="@drawable/ic_agh_manager"
         android:theme="@android:style/Theme.Material.NoActionBar">
-        <activity
-            android:name=".AppRoutingActivity"
-            android:exported="false" />
-        <activity
-            android:name=".WebViewActivity"
-            android:exported="false" />
-        <activity
-            android:name=".DomesticWebViewActivity"
-            android:process=":agh_domestic"
-            android:exported="false" />
-        <activity
-            android:name=".ForeignWebViewActivity"
-            android:process=":agh_foreign"
-            android:exported="false" />
-        <activity
-            android:name=".MihomoWebViewActivity"
-            android:process=":mihomo_web"
-            android:exported="false" />
+        <activity android:name=".WebViewActivity" android:exported="false" />
+        <activity android:name=".DomesticWebViewActivity" android:process=":agh_domestic" android:exported="false" />
+        <activity android:name=".ForeignWebViewActivity" android:process=":agh_foreign" android:exported="false" />
+        <activity android:name=".MihomoWebViewActivity" android:process=":mihomo_web" android:exported="false" />
 
-        <!-- v0.4.x Java UI is retained as a rollback/legacy console during migration. -->
-        <activity
-            android:name=".MainActivity"
-            android:exported="false" />
-
-        <activity
-            android:name=".ComposeMainActivity"
-            android:exported="true">
+        <activity android:name=".ComposeMainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
