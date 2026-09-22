@@ -135,22 +135,19 @@ migrate_dualstack_dns_config() {
       print "    - ::1"
     }
     function emit_bootstrap() {
-      print "  bootstrap_dns:"
       if (profile == "domestic") {
+        print "  bootstrap_dns:"
         print "    - 223.5.5.5"
         print "    - 223.6.6.6"
         print "    - \"2400:3200::1\""
         print "    - \"2400:3200:baba::1\""
       } else {
-        print "    - 1.1.1.1"
-        print "    - 1.0.0.1"
-        print "    - \"2606:4700:4700::1111\""
-        print "    - \"2606:4700:4700::1001\""
-        print "    - 8.8.8.8"
-        print "    - 8.8.4.4"
-        print "    - \"2001:4860:4860::8888\""
-        print "    - \"2001:4860:4860::8844\""
+        print "  bootstrap_dns: []"
       }
+    }
+    function emit_foreign_upstream() {
+      print "  upstream_dns:"
+      print "    - 127.0.0.1:1053"
     }
     BEGIN { skip = "" }
     {
@@ -159,9 +156,19 @@ migrate_dualstack_dns_config() {
         skip = "bind"
         next
       }
-      if ($0 ~ /^  bootstrap_dns:[[:space:]]*$/) {
+      if ($0 ~ /^  bootstrap_dns:/) {
         emit_bootstrap()
         skip = "bootstrap"
+        next
+      }
+      if (profile == "foreign" && $0 ~ /^  upstream_dns:/) {
+        emit_foreign_upstream()
+        skip = "upstream"
+        next
+      }
+      if (profile == "foreign" && $0 ~ /^  fallback_dns:/) {
+        print "  fallback_dns: []"
+        skip = "fallback"
         next
       }
       if (skip != "") {
