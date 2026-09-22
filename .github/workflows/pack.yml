@@ -42,7 +42,7 @@ jobs:
           grep -q '^integration_mode=box-dual$' src/settings.conf
           grep -q 'port: 5591' src/instances/domestic/AdGuardHome.yaml
           grep -q 'port: 5592' src/instances/foreign/AdGuardHome.yaml
-          grep -q '^[[:space:]]*- 127\.0\.0\.1:1053
+          grep -q '^[[:space:]]*- 127\\.0\\.0\\.1:1053
           grep -q 'https://dns.alidns.com/dns-query' src/instances/domestic/AdGuardHome.yaml
           grep -q 'https://doh.pub/dns-query' src/instances/domestic/AdGuardHome.yaml
           grep -q 'aaaa_disabled: false' src/instances/domestic/AdGuardHome.yaml
@@ -52,7 +52,7 @@ jobs:
             echo "foreign AGH must not connect to public DoH directly; use local Mihomo :1053"
             exit 1
           fi
-          if ! sed -n '/fallback_dns:/,/upstream_mode:/p' src/instances/foreign/AdGuardHome.yaml | grep -q '^  fallback_dns: \[\]
+          if ! grep -q '^  fallback_dns: \\[\\]
           if sed -n '/bootstrap_dns:/,/fallback_dns:/p' src/instances/domestic/AdGuardHome.yaml | grep -q 'https://'; then
             echo "domestic bootstrap_dns must use plain DNS IP addresses"
             exit 1
@@ -271,7 +271,7 @@ jobs:
           files: |
             AdGuardHomeForRoot_arm64.zip
             AdGuardHomeForRoot_armv7.zip
-; then
+ src/instances/foreign/AdGuardHome.yaml; then
             echo "foreign fallback_dns must stay empty"
             exit 1
           fi
