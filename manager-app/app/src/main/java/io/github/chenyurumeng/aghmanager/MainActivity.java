@@ -261,22 +261,22 @@ public class MainActivity extends Activity {
         LinearLayout top = rowLayout();
 
         LinearLayout title = column();
-        title.addView(text("Box / " + safe(snapshot.boxBin, "core"), 19, true));
+        title.addView(bind("home.boxTitle", text("Box / " + safe(snapshot.boxBin, "core"), 19, true)));
         String meta = "PID " + safe(snapshot.boxPid, "-")
                 + " · " + safe(snapshot.proxyMode, "?")
                 + " · " + safe(snapshot.networkMode, "?")
                 + " · DNS " + safe(snapshot.dnsHijackMode, "?");
-        TextView m = text(meta, 12, false);
+        TextView m = bind("home.boxMeta", text(meta, 12, false));
         m.setTextColor(MUTED);
         title.addView(m);
         top.addView(title, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        top.addView(chip(snapshot.boxUp ? "RUNNING" : "STOPPED",
-                snapshot.boxUp ? GREEN : RED));
+        top.addView(bind("home.boxStatus", chip(snapshot.boxUp ? "RUNNING" : "STOPPED",
+                snapshot.boxUp ? GREEN : RED)));
         card.addView(top);
 
         if (!TextUtils.isEmpty(snapshot.boxVersion)) {
-            TextView version = text(snapshot.boxVersion, 11, false);
+            TextView version = bind("home.boxVersion", text(snapshot.boxVersion, 11, false));
             version.setTextColor(MUTED);
             version.setPadding(0, dp(8), 0, 0);
             card.addView(version);
@@ -298,11 +298,11 @@ public class MainActivity extends Activity {
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
 
         boolean allUp = snapshot.domesticUp && snapshot.foreignUp;
-        titleRow.addView(chip(allUp ? "DUAL UP" : "DEGRADED", allUp ? GREEN : ORANGE));
+        titleRow.addView(bind("home.aghStatus", chip(allUp ? "DUAL UP" : "DEGRADED", allUp ? GREEN : ORANGE)));
         card.addView(titleRow);
 
-        card.addView(instanceMiniRow("Domestic", "5591 / 3000", snapshot.domesticUp, snapshot.domesticPid));
-        card.addView(instanceMiniRow("Foreign", "5592 / 3001", snapshot.foreignUp, snapshot.foreignPid));
+        card.addView(instanceMiniRow("Domestic", "5591 / 3000", snapshot.domesticUp, snapshot.domesticPid, "home.aghDomestic"));
+        card.addView(instanceMiniRow("Foreign", "5592 / 3001", snapshot.foreignUp, snapshot.foreignPid, "home.aghForeign"));
 
         LinearLayout actions = actionRow(
                 webButton("Domestic", "Domestic AGH", "http://127.0.0.1:3000"),
@@ -313,18 +313,18 @@ public class MainActivity extends Activity {
         return card;
     }
 
-    private View instanceMiniRow(String name, String ports, boolean up, String pid) {
+    private View instanceMiniRow(String name, String ports, boolean up, String pid, String bindKey) {
         LinearLayout row = rowLayout();
         row.setPadding(0, dp(10), 0, 0);
 
-        TextView dot = text("●", 15, true);
+        TextView dot = bind(bindKey + ".dot", text("●", 15, true));
         dot.setTextColor(up ? GREEN : RED);
         row.addView(dot, new LinearLayout.LayoutParams(dp(26),
                 LinearLayout.LayoutParams.WRAP_CONTENT));
 
         LinearLayout body = column();
         body.addView(text(name, 14, true));
-        TextView p = text(ports + (TextUtils.isEmpty(pid) ? "" : " · PID " + pid), 11, false);
+        TextView p = bind(bindKey + ".info", text(ports + (TextUtils.isEmpty(pid) ? "" : " · PID " + pid), 11, false));
         p.setTextColor(MUTED);
         body.addView(p);
         row.addView(body, new LinearLayout.LayoutParams(
@@ -338,52 +338,58 @@ public class MainActivity extends Activity {
 
         LinearLayout title = column();
         title.addView(text("DNS Routing", 18, true));
-        TextView mode = text(
+        TextView mode = bind("home.routingMode", text(
                 "split: " + safe(snapshot.dnsHijackMode, "?")
                         + " · IPv6 " + safe(snapshot.ipv6, "?"),
-                12, false);
+                12, false));
         mode.setTextColor(MUTED);
         title.addView(mode);
         top.addView(title, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        top.addView(chip(snapshot.userStopped ? "USER STOPPED" : "ACTIVE",
-                snapshot.userStopped ? ORANGE : BLUE));
+        top.addView(bind("home.routingStatus", chip(snapshot.userStopped ? "USER STOPPED" : "ACTIVE",
+                snapshot.userStopped ? ORANGE : BLUE)));
         card.addView(top);
 
         boolean blacklistMode = "blacklist".equalsIgnoreCase(snapshot.proxyMode)
                 || "black".equalsIgnoreCase(snapshot.proxyMode);
         if (blacklistMode) {
-            card.addView(routeTextRow("黑名单应用", domesticDnsTarget()));
-            card.addView(routeTextRow("其它应用", foreignDnsTarget()));
+            card.addView(routeTextRow("黑名单应用", domesticDnsTarget(), "home.routePrimary"));
+            card.addView(routeTextRow("其它应用", foreignDnsTarget(), "home.routeSecondary"));
         } else {
-            card.addView(routeTextRow("白名单应用", foreignDnsTarget()));
-            card.addView(routeTextRow("其它应用", domesticDnsTarget()));
+            card.addView(routeTextRow("白名单应用", foreignDnsTarget(), "home.routePrimary"));
+            card.addView(routeTextRow("其它应用", domesticDnsTarget(), "home.routeSecondary"));
         }
 
         LinearLayout listeners = new LinearLayout(this);
         listeners.setOrientation(LinearLayout.HORIZONTAL);
         listeners.setPadding(0, dp(12), 0, 0);
         listeners.addView(routeCell("5591", snapshot.port5591Up ? "LISTEN" : "DOWN",
-                snapshot.port5591Up ? GREEN : RED), weight());
+                snapshot.port5591Up ? GREEN : RED, "home.port5591"), weight());
         listeners.addView(routeCell("5592", snapshot.port5592Up ? "LISTEN" : "DOWN",
-                snapshot.port5592Up ? GREEN : RED), weight());
+                snapshot.port5592Up ? GREEN : RED, "home.port5592"), weight());
         listeners.addView(routeCell("1053", snapshot.port1053Up ? "LISTEN" : "DOWN",
-                snapshot.port1053Up ? GREEN : ORANGE), weight());
+                snapshot.port1053Up ? GREEN : ORANGE, "home.port1053"), weight());
         listeners.addView(routeCell("9090", snapshot.port9090Up ? "API" : "DOWN",
-                snapshot.port9090Up ? GREEN : ORANGE), weight());
+                snapshot.port9090Up ? GREEN : ORANGE, "home.port9090"), weight());
         card.addView(listeners);
         return card;
     }
 
     private View routeTextRow(String label, String target) {
+        return routeTextRow(label, target, null);
+    }
+
+    private View routeTextRow(String label, String target, String bindKey) {
         LinearLayout row = rowLayout();
         row.setPadding(0, dp(10), 0, 0);
         TextView key = text(label, 13, false);
         key.setTextColor(MUTED);
+        if (bindKey != null) bind(bindKey + ".label", key);
         row.addView(key, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.38f));
         TextView value = text("→ " + target, 13, true);
         value.setGravity(Gravity.END);
+        if (bindKey != null) bind(bindKey + ".value", value);
         row.addView(value, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.62f));
         return row;
