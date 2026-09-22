@@ -62,6 +62,7 @@ fun AppNavigation(
     aghConfigRepository: AghConfigRepository,
     aghCredentialStore: AghCredentialStore,
     aghApiRepository: AghApiRepository,
+    aghFilteringRepository: AghFilteringRepository,
     orchestrator: SystemOrchestrator,
     boxController: BoxController,
     aghController: AghController,
@@ -77,7 +78,9 @@ fun AppNavigation(
         currentRoute == "mihomoConnections" ||
         currentRoute?.startsWith("mihomoConnection/") == true ||
         currentRoute == "mihomoSubscriptions" ||
-        currentRoute?.startsWith("aghControl/") == true
+        currentRoute?.startsWith("aghControl/") == true ||
+        currentRoute?.startsWith("aghFilters/") == true ||
+        currentRoute?.startsWith("aghRules/") == true
     val current = destinations.firstOrNull { it.route == currentRoute }
         ?: destinations.firstOrNull { it.route == "box" }
         ?: destinations.first()
@@ -99,7 +102,7 @@ fun AppNavigation(
                             Text(current.label)
                             if (currentRoute == "home") {
                                 Text(
-                                    "Box & AGH Manager · v0.5.0-rc7",
+                                    "Box & AGH Manager · v0.5.0-rc8",
                                     style = androidx.compose.material3.MaterialTheme.typography.labelSmall
                                 )
                             }
@@ -281,7 +284,65 @@ fun AppNavigation(
                     viewModel = vm,
                     contentPadding = innerPadding,
                     onBack = { navController.popBackStack() },
+                    onOpenFilters = {
+                        navController.navigate("aghFilters/" + instance.key)
+                    },
                     onOpenWeb = onOpenAghWeb
+                )
+            }
+            composable(
+                route = "aghFilters/{instance}",
+                arguments = listOf(
+                    androidx.navigation.navArgument("instance") {
+                        type = androidx.navigation.NavType.StringType
+                    }
+                )
+            ) { entry ->
+                val instance = io.github.chenyurumeng.aghmanager.model.AghInstance.fromKey(
+                    entry.arguments?.getString("instance")
+                )
+                val vm: AghFiltersViewModel = viewModel(
+                    factory = AghFiltersViewModel.Factory(
+                        instance = instance,
+                        repository = aghFilteringRepository
+                    )
+                )
+                LaunchedEffect(vm) {
+                    vm.messages.collect { snackbarHostState.showSnackbar(it) }
+                }
+                AghFiltersScreen(
+                    viewModel = vm,
+                    contentPadding = innerPadding,
+                    onBack = { navController.popBackStack() },
+                    onUserRules = {
+                        navController.navigate("aghRules/" + instance.key)
+                    }
+                )
+            }
+            composable(
+                route = "aghRules/{instance}",
+                arguments = listOf(
+                    androidx.navigation.navArgument("instance") {
+                        type = androidx.navigation.NavType.StringType
+                    }
+                )
+            ) { entry ->
+                val instance = io.github.chenyurumeng.aghmanager.model.AghInstance.fromKey(
+                    entry.arguments?.getString("instance")
+                )
+                val vm: AghUserRulesViewModel = viewModel(
+                    factory = AghUserRulesViewModel.Factory(
+                        instance = instance,
+                        repository = aghFilteringRepository
+                    )
+                )
+                LaunchedEffect(vm) {
+                    vm.messages.collect { snackbarHostState.showSnackbar(it) }
+                }
+                AghUserRulesScreen(
+                    viewModel = vm,
+                    contentPadding = innerPadding,
+                    onBack = { navController.popBackStack() }
                 )
             }
             composable("logs") {

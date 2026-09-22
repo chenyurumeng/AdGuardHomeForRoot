@@ -50,6 +50,7 @@ fun AghControlScreen(
     viewModel: AghControlViewModel,
     contentPadding: PaddingValues,
     onBack: () -> Unit,
+    onOpenFilters: () -> Unit,
     onOpenWeb: (String, String) -> Unit
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -245,6 +246,29 @@ fun AghControlScreen(
                         }
                     }
                 }
+            }
+
+            item { SectionHeader("过滤规则") }
+            item {
+                ListItem(
+                    modifier = Modifier.clickable(
+                        enabled = state.credentialBound && state.apiAvailable,
+                        onClick = onOpenFilters
+                    ),
+                    headlineContent = { Text("过滤器与 User Rules") },
+                    supportingContent = {
+                        Text(
+                            if (state.credentialBound && state.apiAvailable) {
+                                "订阅过滤器、白名单、User Rules、域名过滤检查"
+                            } else {
+                                "需要先绑定有效 AGH 管理凭据"
+                            }
+                        )
+                    },
+                    trailingContent = {
+                        Icon(Icons.Default.ChevronRight, contentDescription = "打开过滤规则")
+                    }
+                )
             }
 
             if (state.error.isNotBlank()) {

@@ -27,6 +27,9 @@ class ComposeMainActivity : ComponentActivity() {
     private val aghApiRepository by lazy {
         AghApiRepository(aghConfigRepository, aghCredentialStore)
     }
+    private val aghFilteringRepository by lazy {
+        AghFilteringRepository(aghApiRepository)
+    }
     private val orchestrator = SystemOrchestrator(statusRepository)
     private val boxController = BoxController(statusRepository)
     private val aghController = AghController(statusRepository)
@@ -50,6 +53,7 @@ class ComposeMainActivity : ComponentActivity() {
                     aghConfigRepository = aghConfigRepository,
                     aghCredentialStore = aghCredentialStore,
                     aghApiRepository = aghApiRepository,
+                    aghFilteringRepository = aghFilteringRepository,
                     orchestrator = orchestrator,
                     boxController = boxController,
                     aghController = aghController,

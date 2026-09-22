@@ -156,6 +156,26 @@ class AghApiRepository(
             }
         }
 
+    internal suspend fun control(
+        instance: AghInstance,
+        method: String,
+        path: String,
+        body: String? = null,
+        readTimeoutMs: Int = 15_000
+    ): Result<String> = withContext(Dispatchers.IO) {
+        runCatching {
+            val endpoint = endpoint(instance).getOrThrow()
+            request(
+                endpoint = endpoint,
+                method = method,
+                path = path,
+                credential = credentialStore.load(instance),
+                body = body,
+                readTimeoutMs = readTimeoutMs
+            ).getOrThrow()
+        }
+    }
+
     private suspend fun endpoint(instance: AghInstance): Result<String> =
         configRepository.load(instance).map { structure ->
             structure.webUrl().trimEnd('/')
