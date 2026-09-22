@@ -40,6 +40,11 @@ jobs:
           node --check src/webroot/assets/index.js
           ruby -e 'require "yaml"; YAML.load_file("src/bin/AdGuardHome.yaml"); YAML.load_file("src/instances/domestic/AdGuardHome.yaml"); YAML.load_file("src/instances/foreign/AdGuardHome.yaml")'
           grep -q '^integration_mode=box-dual$' src/settings.conf
+          if grep -q '^updateJson=' src/module.prop; then
+            echo "fork module.prop must not expose updateJson"
+            exit 1
+          fi
+          grep -q -- '--no-check-update' src/scripts/tool.sh
           grep -q 'port: 5591' src/instances/domestic/AdGuardHome.yaml
           grep -q 'port: 5592' src/instances/foreign/AdGuardHome.yaml
           grep -q '^[[:space:]]*- 127\.0\.0\.1:1053$' src/instances/foreign/AdGuardHome.yaml
