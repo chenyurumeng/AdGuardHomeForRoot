@@ -5,7 +5,7 @@
     <application
         android:allowBackup="false"
         android:usesCleartextTraffic="true"
-        android:label="AGH Manager"
+        android:label="Box &amp; AGH Manager"
         android:icon="@drawable/ic_agh_manager"
         android:theme="@android:style/Theme.Material.NoActionBar">
         <activity
