@@ -35,8 +35,14 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import io.github.chenyurumeng.aghmanager.data.AppRepository
 import io.github.chenyurumeng.aghmanager.data.StatusRepository
+import io.github.chenyurumeng.aghmanager.domain.BoxController
 import io.github.chenyurumeng.aghmanager.domain.SystemOrchestrator
+import io.github.chenyurumeng.aghmanager.ui.box.AppRoutingScreen
+import io.github.chenyurumeng.aghmanager.ui.box.AppRoutingViewModel
+import io.github.chenyurumeng.aghmanager.ui.box.BoxScreen
+import io.github.chenyurumeng.aghmanager.ui.box.BoxViewModel
 import io.github.chenyurumeng.aghmanager.ui.home.HomeScreen
 import io.github.chenyurumeng.aghmanager.ui.home.HomeViewModel
 
@@ -58,14 +64,20 @@ private val destinations = listOf(
 @Composable
 fun AppNavigation(
     statusRepository: StatusRepository,
+    appRepository: AppRepository,
     orchestrator: SystemOrchestrator,
+    boxController: BoxController,
     refreshIntervalProvider: () -> Long,
-    onOpenLegacyManager: () -> Unit
+    onOpenLegacyManager: () -> Unit,
+    onOpenMihomoDashboard: (String) -> Unit
 ) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route ?: "home"
-    val current = destinations.firstOrNull { it.route == currentRoute } ?: destinations.first()
+    val isAppRouting = currentRoute == "appRouting"
+    val current = destinations.firstOrNull { it.route == currentRoute }
+        ?: destinations.firstOrNull { it.route == "box" }
+        ?: destinations.first()
     val snackbarHostState = remember { SnackbarHostState() }
 
     val homeViewModel: HomeViewModel = viewModel(
@@ -82,46 +94,50 @@ fun AppNavigation(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(current.label)
+            if (!isAppRouting) {
+                TopAppBar(
+                    title = {
+                        Column {
+                            Text(current.label)
+                            if (currentRoute == "home") {
+                                Text(
+                                    "Box & AGH Manager · v0.5.0-compose-alpha2",
+                                    style = androidx.compose.material3.MaterialTheme.typography.labelSmall
+                                )
+                            }
+                        }
+                    },
+                    actions = {
                         if (currentRoute == "home") {
-                            Text(
-                                "Box & AGH Manager · v0.5.0-compose-alpha1",
-                                style = androidx.compose.material3.MaterialTheme.typography.labelSmall
-                            )
+                            IconButton(onClick = homeViewModel::refresh) {
+                                Icon(Icons.Default.Refresh, contentDescription = "刷新状态")
+                            }
                         }
                     }
-                },
-                actions = {
-                    if (currentRoute == "home") {
-                        IconButton(onClick = homeViewModel::refresh) {
-                            Icon(Icons.Default.Refresh, contentDescription = "刷新状态")
-                        }
-                    }
-                }
-            )
+                )
+            }
         },
         bottomBar = {
-            NavigationBar {
-                destinations.forEach { destination ->
-                    NavigationBarItem(
-                        selected = currentRoute == destination.route,
-                        onClick = {
-                            navController.navigate(destination.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
+            if (!isAppRouting) {
+                NavigationBar {
+                    destinations.forEach { destination ->
+                        NavigationBarItem(
+                            selected = currentRoute == destination.route,
+                            onClick = {
+                                navController.navigate(destination.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = {
-                            Icon(destination.icon, contentDescription = destination.label)
-                        },
-                        label = { Text(destination.label) }
-                    )
+                            },
+                            icon = {
+                                Icon(destination.icon, contentDescription = destination.label)
+                            },
+                            label = { Text(destination.label) }
+                        )
+                    }
                 }
             }
         },
@@ -138,14 +154,39 @@ fun AppNavigation(
                     onOpenLegacyManager = onOpenLegacyManager
                 )
             }
+
             composable("box") {
-                LegacyPlaceholder(
-                    title = "Box",
-                    detail = "Compose BoxScreen 将在 alpha2 迁移；当前继续使用已验证的 v0.4.x 控制逻辑。",
+                val boxViewModel: BoxViewModel = viewModel(
+                    factory = BoxViewModel.Factory(statusRepository, boxController)
+                )
+                LaunchedEffect(boxViewModel) {
+                    boxViewModel.messages.collect { snackbarHostState.showSnackbar(it) }
+                }
+                BoxScreen(
+                    viewModel = boxViewModel,
                     contentPadding = innerPadding,
-                    onOpenLegacyManager = onOpenLegacyManager
+                    onManageApps = { navController.navigate("appRouting") },
+                    onOpenDashboard = onOpenMihomoDashboard
                 )
             }
+
+            composable("appRouting") {
+                val appRoutingViewModel: AppRoutingViewModel = viewModel(
+                    factory = AppRoutingViewModel.Factory(
+                        appRepository,
+                        statusRepository
+                    )
+                )
+                LaunchedEffect(appRoutingViewModel) {
+                    appRoutingViewModel.messages.collect { snackbarHostState.showSnackbar(it) }
+                }
+                AppRoutingScreen(
+                    viewModel = appRoutingViewModel,
+                    contentPadding = innerPadding,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
             composable("agh") {
                 LegacyPlaceholder(
                     title = "AdGuard Home",

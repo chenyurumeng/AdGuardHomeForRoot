@@ -60,11 +60,11 @@ jobs:
       - name: Rename APK
         run: |
           mkdir -p out
-          cp manager-app/app/build/outputs/apk/debug/app-debug.apk out/Box-AGH-Manager-v0.5.0-compose-alpha1-debug.apk
+          cp manager-app/app/build/outputs/apk/debug/app-debug.apk out/Box-AGH-Manager-v0.5.0-compose-alpha2-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Box-AGH-Manager-v0.5.0-compose-alpha1
-          path: out/Box-AGH-Manager-v0.5.0-compose-alpha1-debug.apk
+          name: Box-AGH-Manager-v0.5.0-compose-alpha2
+          path: out/Box-AGH-Manager-v0.5.0-compose-alpha2-debug.apk
           if-no-files-found: error
