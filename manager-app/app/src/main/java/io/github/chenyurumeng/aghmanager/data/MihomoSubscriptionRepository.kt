@@ -102,6 +102,13 @@ class MihomoSubscriptionRepository {
             append("cfg\" \"")
             append(sh)
             append("bak\" || exit 51; ")
+            append("cp -p \"")
+            append(sh)
+            append("cfg\" \"")
+            append(sh)
+            append("tmp\" || { rm -f \"")
+            append(sh)
+            append("bak\"; exit 52; }; ")
             append("printf '%s' '")
             append(encoded)
             append("' | base64 -d > \"")
@@ -271,18 +278,44 @@ class MihomoSubscriptionRepository {
             throw IllegalStateException("config.yaml 缺少 proxy-providers 段")
         }
 
-        val path = existing?.subscription?.path
-            ?.takeIf { it.isNotBlank() }
-            ?: "./proxy_provider/" + name + ".yaml"
-
-        val block = renderProvider(name, url, path, intervalSeconds)
-
         if (existing != null) {
+            val block = lines.subList(existing.start, existing.endExclusive).toMutableList()
+            var urlFound = false
+            var intervalFound = false
+
+            for (index in block.indices) {
+                val line = block[index]
+                if (leadingSpaces(line) != 4 || line.trimStart().startsWith("#")) continue
+
+                val trimmed = line.trim()
+                when {
+                    trimmed.startsWith("url:") -> {
+                        block[index] = "    url: \"" + yamlEscape(url) + "\""
+                        urlFound = true
+                    }
+                    trimmed.startsWith("interval:") -> {
+                        block[index] = "    interval: " + intervalSeconds
+                        intervalFound = true
+                    }
+                }
+            }
+
+            if (!urlFound) {
+                block.add(1, "    url: \"" + yamlEscape(url) + "\"")
+            }
+            if (!intervalFound) {
+                val healthIndex = block.indexOfFirst { it.trim() == "health-check:" }
+                val insertIndex = if (healthIndex >= 0) healthIndex else block.size
+                block.add(insertIndex, "    interval: " + intervalSeconds)
+            }
+
             for (index in existing.endExclusive - 1 downTo existing.start) {
                 lines.removeAt(index)
             }
             lines.addAll(existing.start, block)
         } else {
+            val path = "./proxy_provider/" + name + ".yaml"
+            val block = renderProvider(name, url, path, intervalSeconds)
             val insertAt = findSectionEnd(lines, header + 1)
             lines.addAll(insertAt, block + listOf(""))
         }

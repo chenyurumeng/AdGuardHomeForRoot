@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -37,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.chenyurumeng.aghmanager.model.MihomoSubscription
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MihomoSubscriptionsScreen(
     viewModel: MihomoSubscriptionsViewModel,
@@ -47,7 +49,7 @@ fun MihomoSubscriptionsScreen(
     var editing by remember { mutableStateOf<MihomoSubscription?>(null) }
     var adding by remember { mutableStateOf(false) }
 
-    BackHandler(enabled = !state.saving, onBack = onBack)
+    BackHandler { if (!state.saving) onBack() }
 
     Column(modifier = Modifier.fillMaxSize().padding(contentPadding)) {
         TopAppBar(
