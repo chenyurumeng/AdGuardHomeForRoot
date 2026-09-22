@@ -4,7 +4,7 @@ Standalone Android manager for the integrated **Box + Mihomo + dual AdGuard Home
 
 ## Version
 
-v0.3.0-rc1
+v0.3.0-rc3
 
 ## Architecture
 
@@ -77,3 +77,12 @@ Restart all:
 3. Start Box
 
 This order is intentional and must not be changed without re-running the Stage 17-20 regression suite.
+
+
+## WebView process isolation
+
+Domestic (:3000), Foreign (:3001), and Mihomo (:9090) dashboards run in separate Android processes with separate WebView data directories.
+
+The data-directory suffix is configured once per process before WebView initialization. This avoids repeated `WebView.setDataDirectorySuffix()` calls when a dashboard Activity is reopened while its process remains alive, which would otherwise throw `IllegalStateException`.
+
+Cookies are explicitly flushed when leaving a dashboard so login state survives Activity recreation.
