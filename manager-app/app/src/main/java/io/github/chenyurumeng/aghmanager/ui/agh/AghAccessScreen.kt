@@ -27,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -41,7 +42,7 @@ fun AghAccessScreen(
     onBack: () -> Unit
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    var confirmBack by remember { mutableStateOf(false) }
+    var confirmBack by rememberSaveable { mutableStateOf(false) }
     val pending = state.pending
 
     fun requestBack() {
@@ -61,7 +62,7 @@ fun AghAccessScreen(
             actions = {
                 IconButton(
                     onClick = viewModel::refresh,
-                    enabled = !state.applying && !state.dirty
+                    enabled = !state.applying && !state.loading && !state.dirty
                 ) {
                     Icon(Icons.Default.Refresh, contentDescription = "刷新")
                 }

@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -49,10 +50,10 @@ fun AghRewritesScreen(
     onBack: () -> Unit
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    var adding by remember { mutableStateOf(false) }
+    var adding by rememberSaveable { mutableStateOf(false) }
     var editing by remember { mutableStateOf<AghRewriteRule?>(null) }
     var deleting by remember { mutableStateOf<AghRewriteRule?>(null) }
-    var confirmBack by remember { mutableStateOf(false) }
+    var confirmBack by rememberSaveable { mutableStateOf(false) }
 
     val query = state.query.trim()
     val visible = remember(state.rules, query) {
@@ -78,7 +79,10 @@ fun AghRewritesScreen(
                 }
             },
             actions = {
-                IconButton(onClick = viewModel::refresh, enabled = !state.busy) {
+                IconButton(
+                    onClick = viewModel::refresh,
+                    enabled = !state.busy && !state.loading && !state.settingsDirty
+                ) {
                     Icon(Icons.Default.Refresh, contentDescription = "刷新")
                 }
                 IconButton(onClick = { adding = true }, enabled = !state.busy) {

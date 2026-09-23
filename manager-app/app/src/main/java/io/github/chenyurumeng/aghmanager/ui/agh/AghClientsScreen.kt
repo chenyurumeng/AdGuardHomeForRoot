@@ -84,7 +84,10 @@ fun AghClientsScreen(
                 }
             },
             actions = {
-                IconButton(onClick = viewModel::refresh, enabled = !state.busy) {
+                IconButton(
+                    onClick = viewModel::refresh,
+                    enabled = !state.busy && !state.loading
+                ) {
                     Icon(Icons.Default.Refresh, contentDescription = "刷新")
                 }
                 IconButton(
