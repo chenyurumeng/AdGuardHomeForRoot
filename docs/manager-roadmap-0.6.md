@@ -31,7 +31,7 @@
 | RC16 | 0.5.0-rc16 | 26 | TLS / DoH / DoT / DoQ management | COMPLETE |
 | RC17 | 0.5.0-rc17 | 27 | Backup / Restore / Export / Migration | COMPLETE |
 | RC18 | 0.5.0-rc18 | 28 | Diagnostics / Health Center / consistency checks | COMPLETE |
-| RC19 | 0.5.0-rc19 | 29 | UI / performance / lifecycle / error hardening | Required |
+| RC19 | 0.5.0-rc19 | 29 | UI / performance / lifecycle / error hardening | COMPLETE |
 | RC20 | 0.5.0-rc20 | 30 | Feature freeze and full regression | Required |
 | Release | 0.6.0 | 31 | Signed release, notes, tag and stable integration | Final |
 
