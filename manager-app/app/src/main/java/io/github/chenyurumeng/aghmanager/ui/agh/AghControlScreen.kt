@@ -57,6 +57,7 @@ fun AghControlScreen(
     onOpenAccess: () -> Unit,
     onOpenBlockedServices: () -> Unit,
     onOpenProtection: () -> Unit,
+    onOpenTls: () -> Unit,
     onOpenStatistics: () -> Unit,
     onOpenWeb: (String, String) -> Unit
 ) {
@@ -360,6 +361,29 @@ fun AghControlScreen(
                     },
                     trailingContent = {
                         Icon(Icons.Default.ChevronRight, contentDescription = "打开 Blocked Services")
+                    }
+                )
+            }
+
+            item { SectionHeader("加密 DNS") }
+            item {
+                ListItem(
+                    modifier = Modifier.clickable(
+                        enabled = state.credentialBound && state.apiAvailable,
+                        onClick = onOpenTls
+                    ),
+                    headlineContent = { Text("TLS / Encrypted DNS") },
+                    supportingContent = {
+                        Text(
+                            if (state.credentialBound && state.apiAvailable) {
+                                "HTTPS/DoH、DoT、DoQ、证书与私钥管理"
+                            } else {
+                                "需要先绑定有效 AGH 管理凭据"
+                            }
+                        )
+                    },
+                    trailingContent = {
+                        Icon(Icons.Default.ChevronRight, contentDescription = "打开 TLS 管理")
                     }
                 )
             }
