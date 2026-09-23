@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -158,7 +159,8 @@ fun AghStatisticsScreen(
                 StatisticsContent(
                     stats = state.stats!!,
                     refreshing = state.refreshing,
-                    onReset = { confirmReset = true }
+                    onReset = { confirmReset = true },
+                    modifier = Modifier.weight(1f)
                 )
             }
 
@@ -228,9 +230,10 @@ fun AghStatisticsScreen(
 private fun StatisticsContent(
     stats: AghStatistics,
     refreshing: Boolean,
-    onReset: () -> Unit
+    onReset: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
+    LazyColumn(modifier = modifier.fillMaxWidth()) {
         item {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
