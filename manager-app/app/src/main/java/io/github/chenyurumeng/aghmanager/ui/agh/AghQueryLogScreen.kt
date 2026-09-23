@@ -24,6 +24,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -38,6 +39,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -71,9 +73,11 @@ fun AghQueryLogScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val clipboard = LocalClipboardManager.current
 
-    var autoRefresh by remember { mutableStateOf(true) }
-    var showSettings by remember { mutableStateOf(false) }
-    var confirmClear by remember { mutableStateOf(false) }
+    val visibleEntries = remember(state.entries, state.filter) { visibleEntries }
+
+    var autoRefresh by rememberSaveable { mutableStateOf(true) }
+    var showSettings by rememberSaveable { mutableStateOf(false) }
+    var confirmClear by rememberSaveable { mutableStateOf(false) }
     var editor by remember { mutableStateOf<RuleEditorState?>(null) }
     var deletingRule by remember { mutableStateOf<String?>(null) }
 
@@ -102,7 +106,12 @@ fun AghQueryLogScreen(
                 }
             },
             actions = {
-                IconButton(onClick = viewModel::refreshLatest) {
+                IconButton(
+                    onClick = viewModel::refreshLatest,
+                    enabled = !state.loading &&
+                        !state.loadingMore &&
+                        !state.refreshingLatest
+                ) {
                     Icon(Icons.Default.Refresh, contentDescription = "刷新日志")
                 }
                 IconButton(
@@ -113,6 +122,10 @@ fun AghQueryLogScreen(
                 }
             }
         )
+
+        if (state.loading || state.refreshingLatest || state.loadingMore) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        }
 
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
@@ -157,7 +170,7 @@ fun AghQueryLogScreen(
         )
 
         Text(
-            "显示 " + state.visibleEntries.size + " / " + state.entries.size + " 条",
+            "显示 " + visibleEntries.size + " / " + state.entries.size + " 条",
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -183,14 +196,14 @@ fun AghQueryLogScreen(
 
         LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
             items(
-                items = state.visibleEntries,
+                items = visibleEntries,
                 key = { it.stableKey }
             ) { entry ->
                 QueryLogRow(entry = entry, onClick = { viewModel.select(entry) })
                 HorizontalDivider()
             }
 
-            if (!state.loading && state.visibleEntries.isEmpty()) {
+            if (!state.loading && visibleEntries.isEmpty()) {
                 item {
                     Text(
                         if (state.entries.isEmpty()) "暂无 Query Log 记录"

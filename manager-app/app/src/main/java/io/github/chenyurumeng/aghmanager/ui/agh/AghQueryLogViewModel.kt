@@ -10,6 +10,7 @@ import io.github.chenyurumeng.aghmanager.model.AghQueryFilter
 import io.github.chenyurumeng.aghmanager.model.AghQueryLogConfig
 import io.github.chenyurumeng.aghmanager.model.AghQueryLogEntry
 import io.github.chenyurumeng.aghmanager.model.AghQueryLogUiState
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -27,6 +28,9 @@ class AghQueryLogViewModel(
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val messages = _messages.asSharedFlow()
 
+    private var firstPageJob: Job? = null
+    private var latestJob: Job? = null
+
     init {
         loadFirstPage(initial = true)
     }
@@ -37,32 +41,45 @@ class AghQueryLogViewModel(
     }
 
     fun refreshLatest() {
-        if (_state.value.loading || _state.value.loadingMore) return
-        viewModelScope.launch {
-            repository.loadPage(
-                instance = instance,
-                search = _state.value.search,
-                limit = 100
-            ).onSuccess { page ->
-                _state.value = _state.value.copy(
-                    loading = false,
-                    entries = page.entries,
-                    oldest = page.oldest,
-                    error = ""
-                )
-            }.onFailure {
-                _state.value = _state.value.copy(
-                    loading = false,
-                    error = it.message ?: "Query Log 刷新失败"
-                )
+        val snapshot = _state.value
+        if (
+            snapshot.loading ||
+            snapshot.loadingMore ||
+            snapshot.refreshingLatest ||
+            latestJob?.isActive == true
+        ) return
+
+        latestJob = viewModelScope.launch {
+            _state.value = _state.value.copy(refreshingLatest = true, error = "")
+            try {
+                repository.loadPage(
+                    instance = instance,
+                    search = snapshot.search,
+                    limit = 100
+                ).onSuccess { page ->
+                    _state.value = _state.value.copy(
+                        entries = page.entries,
+                        oldest = page.oldest,
+                        error = ""
+                    )
+                }.onFailure {
+                    _state.value = _state.value.copy(
+                        error = it.message ?: "Query Log 刷新失败"
+                    )
+                }
+            } finally {
+                _state.value = _state.value.copy(refreshingLatest = false)
             }
         }
     }
 
     private fun loadFirstPage(initial: Boolean) {
-        viewModelScope.launch {
+        latestJob?.cancel()
+        firstPageJob?.cancel()
+        firstPageJob = viewModelScope.launch {
             _state.value = _state.value.copy(
                 loading = true,
+                refreshingLatest = false,
                 entries = if (initial) emptyList() else _state.value.entries,
                 oldest = if (initial) "" else _state.value.oldest,
                 error = ""
@@ -99,7 +116,12 @@ class AghQueryLogViewModel(
 
     fun loadMore() {
         val snapshot = _state.value
-        if (snapshot.loading || snapshot.loadingMore || snapshot.oldest.isBlank()) return
+        if (
+            snapshot.loading ||
+            snapshot.loadingMore ||
+            snapshot.refreshingLatest ||
+            snapshot.oldest.isBlank()
+        ) return
 
         viewModelScope.launch {
             _state.value = snapshot.copy(loadingMore = true, error = "")

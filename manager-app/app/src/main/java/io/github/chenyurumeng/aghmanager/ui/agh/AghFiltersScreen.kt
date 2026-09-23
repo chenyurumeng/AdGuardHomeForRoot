@@ -64,12 +64,14 @@ fun AghFiltersScreen(
         status?.filters.orEmpty()
     }
     val query = state.query.trim()
-    val visible = if (query.isBlank()) {
-        source
-    } else {
-        source.filter {
-            it.name.contains(query, ignoreCase = true) ||
-                it.url.contains(query, ignoreCase = true)
+    val visible = remember(source, query) {
+        if (query.isBlank()) {
+            source
+        } else {
+            source.filter {
+                it.name.contains(query, ignoreCase = true) ||
+                    it.url.contains(query, ignoreCase = true)
+            }
         }
     }
 

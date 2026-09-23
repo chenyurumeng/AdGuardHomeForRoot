@@ -70,6 +70,7 @@ enum class AghQueryFilter(val label: String) {
 data class AghQueryLogUiState(
     val loading: Boolean = true,
     val loadingMore: Boolean = false,
+    val refreshingLatest: Boolean = false,
     val entries: List<AghQueryLogEntry> = emptyList(),
     val oldest: String = "",
     val search: String = "",
