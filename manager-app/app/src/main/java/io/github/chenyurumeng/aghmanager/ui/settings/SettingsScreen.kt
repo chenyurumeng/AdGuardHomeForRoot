@@ -23,7 +23,11 @@ import io.github.chenyurumeng.aghmanager.data.StatusRepository
 import io.github.chenyurumeng.aghmanager.model.SystemState
 
 @Composable
-fun SettingsScreen(viewModel: SettingsViewModel, contentPadding: PaddingValues) {
+fun SettingsScreen(
+    viewModel: SettingsViewModel,
+    contentPadding: PaddingValues,
+    onOpenBackup: () -> Unit
+) {
     val refreshInterval by viewModel.refreshInterval.collectAsStateWithLifecycle()
     val generating by viewModel.generatingDiagnostic.collectAsStateWithLifecycle()
     val state by viewModel.systemState.collectAsStateWithLifecycle()
@@ -86,8 +90,27 @@ fun SettingsScreen(viewModel: SettingsViewModel, contentPadding: PaddingValues) 
             }
         }
 
+        item { SectionHeader("数据管理") }
+        item {
+            Surface(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                shape = MaterialTheme.shapes.large,
+                tonalElevation = 2.dp
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("版本化备份、导入预览、分模块恢复与恢复前快照。")
+                    Button(
+                        onClick = onOpenBackup,
+                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                    ) {
+                        Text("备份 / 恢复 / 迁移")
+                    }
+                }
+            }
+        }
+
         item { SectionHeader("关于") }
-        item { InfoRow("版本", "0.5.0-rc16") }
+        item { InfoRow("版本", "0.5.0-rc17") }
         item { HorizontalDivider() }
         item { InfoRow("Box 后端", StatusRepository.BOX_SERVICE) }
         item { HorizontalDivider() }

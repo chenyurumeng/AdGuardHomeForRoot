@@ -71,6 +71,7 @@ fun AppNavigation(
     aghStatisticsRepository: AghStatisticsRepository,
     aghProtectionRepository: AghProtectionRepository,
     aghTlsRepository: AghTlsRepository,
+    backupRepository: BackupRepository,
     orchestrator: SystemOrchestrator,
     boxController: BoxController,
     aghController: AghController,
@@ -96,7 +97,8 @@ fun AppNavigation(
         currentRoute?.startsWith("aghBlockedServices/") == true ||
         currentRoute?.startsWith("aghStatistics/") == true ||
         currentRoute?.startsWith("aghProtection/") == true ||
-        currentRoute?.startsWith("aghTls/") == true
+        currentRoute?.startsWith("aghTls/") == true ||
+        currentRoute == "backup"
     val current = destinations.firstOrNull { it.route == currentRoute }
         ?: destinations.firstOrNull { it.route == "box" }
         ?: destinations.first()
@@ -118,7 +120,7 @@ fun AppNavigation(
                             Text(current.label)
                             if (currentRoute == "home") {
                                 Text(
-                                    "Box & AGH Manager · v0.5.0-rc16",
+                                    "Box & AGH Manager · v0.5.0-rc17",
                                     style = androidx.compose.material3.MaterialTheme.typography.labelSmall
                                 )
                             }
@@ -612,7 +614,24 @@ fun AppNavigation(
                 LaunchedEffect(vm, onCopyText) {
                     vm.copyEvents.collect { onCopyText("Box & AGH Manager 诊断报告", it) }
                 }
-                SettingsScreen(viewModel = vm, contentPadding = innerPadding)
+                SettingsScreen(
+                    viewModel = vm,
+                    contentPadding = innerPadding,
+                    onOpenBackup = { navController.navigate("backup") }
+                )
+            }
+            composable("backup") {
+                val vm: BackupViewModel = viewModel(
+                    factory = BackupViewModel.Factory(backupRepository)
+                )
+                LaunchedEffect(vm) {
+                    vm.messages.collect { snackbarHostState.showSnackbar(it) }
+                }
+                BackupScreen(
+                    viewModel = vm,
+                    contentPadding = innerPadding,
+                    onBack = { navController.popBackStack() }
+                )
             }
         }
     }

@@ -28,8 +28,8 @@
 | RC13 | 0.5.0-rc13 | 23 | Statistics completion | COMPLETE |
 | RC14 | 0.5.0-rc14 | 24 | Safe Browsing / Safe Search / Parental Control | COMPLETE |
 | RC15 | 0.5.0-rc15 | 25 | Blocked Services Schedule native editing | COMPLETE |
-| RC16 | 0.5.0-rc16 | 26 | TLS / DoH / DoT / DoQ management | IN PROGRESS |
-| RC17 | 0.5.0-rc17 | 27 | Backup / Restore / Export / Migration | Required |
+| RC16 | 0.5.0-rc16 | 26 | TLS / DoH / DoT / DoQ management | COMPLETE |
+| RC17 | 0.5.0-rc17 | 27 | Backup / Restore / Export / Migration | IN PROGRESS |
 | RC18 | 0.5.0-rc18 | 28 | Diagnostics / Health Center / consistency checks | Required |
 | RC19 | 0.5.0-rc19 | 29 | UI / performance / lifecycle / error hardening | Required |
 | RC20 | 0.5.0-rc20 | 30 | Feature freeze and full regression | Required |
