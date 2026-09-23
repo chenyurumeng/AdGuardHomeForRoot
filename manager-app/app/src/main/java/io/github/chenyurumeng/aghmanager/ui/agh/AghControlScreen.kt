@@ -56,6 +56,7 @@ fun AghControlScreen(
     onOpenRewrites: () -> Unit,
     onOpenAccess: () -> Unit,
     onOpenBlockedServices: () -> Unit,
+    onOpenProtection: () -> Unit,
     onOpenStatistics: () -> Unit,
     onOpenWeb: (String, String) -> Unit
 ) {
@@ -299,6 +300,27 @@ fun AghControlScreen(
             }
 
             item { SectionHeader("安全与访问控制") }
+            item {
+                ListItem(
+                    modifier = Modifier.clickable(
+                        enabled = state.credentialBound && state.apiAvailable,
+                        onClick = onOpenProtection
+                    ),
+                    headlineContent = { Text("安全保护") },
+                    supportingContent = {
+                        Text(
+                            if (state.credentialBound && state.apiAvailable) {
+                                "Safe Browsing、Safe Search 与 Parental Control"
+                            } else {
+                                "需要先绑定有效 AGH 管理凭据"
+                            }
+                        )
+                    },
+                    trailingContent = {
+                        Icon(Icons.Default.ChevronRight, contentDescription = "打开安全保护")
+                    }
+                )
+            }
             item {
                 ListItem(
                     modifier = Modifier.clickable(

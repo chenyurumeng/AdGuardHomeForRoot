@@ -26,7 +26,7 @@
 | Stage | Version | Code | Goal | Gate |
 |---|---:|---:|---|---|
 | RC13 | 0.5.0-rc13 | 23 | Statistics completion | COMPLETE |
-| RC14 | 0.5.0-rc14 | 24 | Safe Browsing / Safe Search / Parental Control | Required |
+| RC14 | 0.5.0-rc14 | 24 | Safe Browsing / Safe Search / Parental Control | IN PROGRESS |
 | RC15 | 0.5.0-rc15 | 25 | Blocked Services Schedule native editing | Required |
 | RC16 | 0.5.0-rc16 | 26 | TLS / DoH / DoT / DoQ management | Optional, valuable |
 | RC17 | 0.5.0-rc17 | 27 | Backup / Restore / Export / Migration | Required |

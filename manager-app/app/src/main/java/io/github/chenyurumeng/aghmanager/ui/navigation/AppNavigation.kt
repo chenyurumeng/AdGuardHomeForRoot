@@ -69,6 +69,7 @@ fun AppNavigation(
     aghAccessRepository: AghAccessRepository,
     aghBlockedServicesRepository: AghBlockedServicesRepository,
     aghStatisticsRepository: AghStatisticsRepository,
+    aghProtectionRepository: AghProtectionRepository,
     orchestrator: SystemOrchestrator,
     boxController: BoxController,
     aghController: AghController,
@@ -92,7 +93,8 @@ fun AppNavigation(
         currentRoute?.startsWith("aghRewrites/") == true ||
         currentRoute?.startsWith("aghAccess/") == true ||
         currentRoute?.startsWith("aghBlockedServices/") == true ||
-        currentRoute?.startsWith("aghStatistics/") == true
+        currentRoute?.startsWith("aghStatistics/") == true ||
+        currentRoute?.startsWith("aghProtection/") == true
     val current = destinations.firstOrNull { it.route == currentRoute }
         ?: destinations.firstOrNull { it.route == "box" }
         ?: destinations.first()
@@ -114,7 +116,7 @@ fun AppNavigation(
                             Text(current.label)
                             if (currentRoute == "home") {
                                 Text(
-                                    "Box & AGH Manager · v0.5.0-rc13",
+                                    "Box & AGH Manager · v0.5.0-rc14",
                                     style = androidx.compose.material3.MaterialTheme.typography.labelSmall
                                 )
                             }
@@ -314,10 +316,39 @@ fun AppNavigation(
                     onOpenBlockedServices = {
                         navController.navigate("aghBlockedServices/" + instance.key)
                     },
+                    onOpenProtection = {
+                        navController.navigate("aghProtection/" + instance.key)
+                    },
                     onOpenStatistics = {
                         navController.navigate("aghStatistics/" + instance.key)
                     },
                     onOpenWeb = onOpenAghWeb
+                )
+            }
+            composable(
+                route = "aghProtection/{instance}",
+                arguments = listOf(
+                    androidx.navigation.navArgument("instance") {
+                        type = androidx.navigation.NavType.StringType
+                    }
+                )
+            ) { entry ->
+                val instance = io.github.chenyurumeng.aghmanager.model.AghInstance.fromKey(
+                    entry.arguments?.getString("instance")
+                )
+                val vm: AghProtectionViewModel = viewModel(
+                    factory = AghProtectionViewModel.Factory(
+                        instance = instance,
+                        repository = aghProtectionRepository
+                    )
+                )
+                LaunchedEffect(vm) {
+                    vm.messages.collect { snackbarHostState.showSnackbar(it) }
+                }
+                AghProtectionScreen(
+                    viewModel = vm,
+                    contentPadding = innerPadding,
+                    onBack = { navController.popBackStack() }
                 )
             }
             composable(
