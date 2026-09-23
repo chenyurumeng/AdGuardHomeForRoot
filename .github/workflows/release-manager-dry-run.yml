@@ -1,0 +1,97 @@
+name: Dry Run Manager Release Build
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/release-manager-dry-run.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: manager-release-dry-run
+  cancel-in-progress: true
+
+jobs:
+  dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout current manager candidate
+        uses: actions/checkout@v7
+        with:
+          ref: feat/manager-compose-v0.5
+          fetch-depth: 0
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="$RUNNER_TEMP/android-sdk"
+          mkdir -p "$SDK_ROOT/cmdline-tools"
+          curl -fsSL -o "$RUNNER_TEMP/cmdline-tools.zip"             https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -q "$RUNNER_TEMP/cmdline-tools.zip" -d "$RUNNER_TEMP/cmdline-tools-unpack"
+          mv "$RUNNER_TEMP/cmdline-tools-unpack/cmdline-tools" "$SDK_ROOT/cmdline-tools/latest"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "$SDK_ROOT/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
+          yes | "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+          "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"             "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '8.9'
+
+      - name: Generate non-publishable ephemeral signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          KEYSTORE_PATH="$RUNNER_TEMP/non-publishable-manager-dry-run.jks"
+          keytool -genkeypair             -keystore "$KEYSTORE_PATH"             -storepass non-publishable-dry-run             -keypass non-publishable-dry-run             -alias dry-run-only             -keyalg RSA             -keysize 3072             -validity 2             -dname "CN=NON-PUBLISHABLE Manager CI Dry Run,O=AdGuardHomeForRoot CI,C=US"             -noprompt
+
+          echo "MANAGER_RELEASE_STORE_FILE=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+          echo "MANAGER_RELEASE_STORE_PASSWORD=non-publishable-dry-run" >> "$GITHUB_ENV"
+          echo "MANAGER_RELEASE_KEY_ALIAS=dry-run-only" >> "$GITHUB_ENV"
+          echo "MANAGER_RELEASE_KEY_PASSWORD=non-publishable-dry-run" >> "$GITHUB_ENV"
+
+      - name: Test, lint and assemble release variant
+        working-directory: manager-app
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:test :app:lintRelease :app:assembleRelease
+
+      - name: Verify release variant signature and package metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APK="manager-app/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify             --verbose             --print-certs             "$APK"
+
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK"             | sed -n '1p'
+
+          SHA="$(sha256sum "$APK" | awk '{print $1}')"
+          echo "NON-PUBLISHABLE release-build SHA256=$SHA"
+
+          rm -f "$APK"
+          test ! -e "$APK"
+
+      - name: Confirm no publishable artifact is retained
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e manager-app/app/build/outputs/apk/release/app-release.apk
+          echo "Dry run passed. No APK artifact was uploaded or retained."
