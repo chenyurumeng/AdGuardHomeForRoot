@@ -56,6 +56,7 @@ fun AghControlScreen(
     onOpenRewrites: () -> Unit,
     onOpenAccess: () -> Unit,
     onOpenBlockedServices: () -> Unit,
+    onOpenStatistics: () -> Unit,
     onOpenWeb: (String, String) -> Unit
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -337,6 +338,29 @@ fun AghControlScreen(
                     },
                     trailingContent = {
                         Icon(Icons.Default.ChevronRight, contentDescription = "打开 Blocked Services")
+                    }
+                )
+            }
+
+            item { SectionHeader("统计") }
+            item {
+                ListItem(
+                    modifier = Modifier.clickable(
+                        enabled = state.credentialBound && state.apiAvailable,
+                        onClick = onOpenStatistics
+                    ),
+                    headlineContent = { Text("Statistics") },
+                    supportingContent = {
+                        Text(
+                            if (state.credentialBound && state.apiAvailable) {
+                                "DNS 查询、阻止率、Top 域名/客户端/上游与趋势"
+                            } else {
+                                "需要先绑定有效 AGH 管理凭据"
+                            }
+                        )
+                    },
+                    trailingContent = {
+                        Icon(Icons.Default.ChevronRight, contentDescription = "打开 Statistics")
                     }
                 )
             }
