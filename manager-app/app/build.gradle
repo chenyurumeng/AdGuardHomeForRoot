@@ -4,6 +4,17 @@ plugins {
     id 'org.jetbrains.kotlin.plugin.compose'
 }
 
+def releaseStoreFilePath = System.getenv("MANAGER_RELEASE_STORE_FILE")
+def releaseStorePassword = System.getenv("MANAGER_RELEASE_STORE_PASSWORD")
+def releaseKeyAlias = System.getenv("MANAGER_RELEASE_KEY_ALIAS")
+def releaseKeyPassword = System.getenv("MANAGER_RELEASE_KEY_PASSWORD")
+def hasReleaseSigning = [
+    releaseStoreFilePath,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword
+].every { it != null && !it.trim().isEmpty() }
+
 android {
     namespace 'io.github.chenyurumeng.aghmanager'
     compileSdk 35
@@ -16,6 +27,17 @@ android {
         versionName "0.5.0-rc20"
     }
 
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile file(releaseStoreFilePath)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix ".debug"
@@ -24,6 +46,9 @@ android {
         release {
             minifyEnabled false
             shrinkResources false
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 
@@ -53,4 +78,22 @@ dependencies {
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
     implementation 'org.mindrot:jbcrypt:0.4'
     testImplementation 'junit:junit:4.13.2'
+}
+
+
+gradle.taskGraph.whenReady { graph ->
+    def releasePackagingRequested = graph.allTasks.any { task ->
+        task.project == project && (
+            task.name == 'assembleRelease' ||
+            task.name == 'packageRelease' ||
+            task.name == 'bundleRelease'
+        )
+    }
+    if (releasePackagingRequested && !hasReleaseSigning) {
+        throw new GradleException(
+            "Release packaging requires MANAGER_RELEASE_STORE_FILE, " +
+                "MANAGER_RELEASE_STORE_PASSWORD, MANAGER_RELEASE_KEY_ALIAS, " +
+                "and MANAGER_RELEASE_KEY_PASSWORD."
+        )
+    }
 }

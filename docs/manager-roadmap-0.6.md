@@ -292,6 +292,8 @@ Release gate:
 
 ## 0.6.0 — Signed Stable Release
 
+Preparation status: READY. Publication remains blocked by the RC20 rooted-device P0/P1 gate and release signing secrets. See `docs/manager-0.6.0-release-gate.md`.
+
 Add formal release build:
 
 - `:app:lintRelease`
