@@ -298,7 +298,7 @@ private suspend fun readText(context: Context, uri: Uri): Result<String> =
 private suspend fun writeText(context: Context, uri: Uri, value: String): Result<Unit> =
     withContext(Dispatchers.IO) {
         runCatching {
-            context.contentResolver.openOutputStream(uri, "wt")?.use {
+            context.contentResolver.openOutputStream(uri, "w")?.use {
                 it.write(value.toByteArray(Charsets.UTF_8))
             } ?: throw IllegalStateException("无法写入目标文件")
         }
