@@ -63,7 +63,7 @@ fun AghTlsScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var confirmBack by remember { mutableStateOf(false) }
+    var confirmBack by rememberSaveable { mutableStateOf(false) }
     var confirmKeyClear by remember { mutableStateOf(false) }
     var showPrivateKey by remember { mutableStateOf(false) }
 
@@ -114,7 +114,10 @@ fun AghTlsScreen(
             actions = {
                 IconButton(
                     onClick = viewModel::refresh,
-                    enabled = !state.applying && !state.validating && !state.dirty
+                    enabled = !state.loading &&
+                        !state.applying &&
+                        !state.validating &&
+                        !state.dirty
                 ) {
                     Icon(Icons.Default.Refresh, contentDescription = "刷新")
                 }

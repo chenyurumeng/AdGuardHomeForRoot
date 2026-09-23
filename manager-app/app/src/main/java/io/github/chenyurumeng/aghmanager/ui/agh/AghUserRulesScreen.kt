@@ -26,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -39,7 +40,7 @@ fun AghUserRulesScreen(
     onBack: () -> Unit
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    var confirmBack by remember { mutableStateOf(false) }
+    var confirmBack by rememberSaveable { mutableStateOf(false) }
 
     fun requestBack() {
         if (state.dirty) confirmBack = true else onBack()
@@ -66,7 +67,7 @@ fun AghUserRulesScreen(
             actions = {
                 IconButton(
                     onClick = viewModel::refresh,
-                    enabled = !state.saving && !state.dirty
+                    enabled = !state.loading && !state.saving && !state.dirty
                 ) {
                     Icon(Icons.Default.Refresh, contentDescription = "重新读取")
                 }

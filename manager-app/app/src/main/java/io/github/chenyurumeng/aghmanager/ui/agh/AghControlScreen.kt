@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
@@ -62,10 +63,10 @@ fun AghControlScreen(
     onOpenWeb: (String, String) -> Unit
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    var showCredentialDialog by remember { mutableStateOf(false) }
+    var showCredentialDialog by rememberSaveable { mutableStateOf(false) }
     var newPassword by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
-    var foreignUpstreamUnlocked by remember { mutableStateOf(false) }
+    var foreignUpstreamUnlocked by rememberSaveable { mutableStateOf(false) }
 
     BackHandler(
         enabled = !state.applyingStructure && !state.applyingDns,
