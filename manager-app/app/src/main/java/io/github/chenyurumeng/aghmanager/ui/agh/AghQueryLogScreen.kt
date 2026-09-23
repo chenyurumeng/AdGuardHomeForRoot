@@ -73,7 +73,7 @@ fun AghQueryLogScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val clipboard = LocalClipboardManager.current
 
-    val visibleEntries = remember(state.entries, state.filter) { visibleEntries }
+    val visibleEntries = remember(state.entries, state.filter) { state.visibleEntries }
 
     var autoRefresh by rememberSaveable { mutableStateOf(true) }
     var showSettings by rememberSaveable { mutableStateOf(false) }

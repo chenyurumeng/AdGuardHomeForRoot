@@ -168,8 +168,8 @@ open class WebViewActivity : ComponentActivity() {
             webViewClient = WebViewClient()
             webChromeClient = object : WebChromeClient() {
                 override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                    progress.progress = newProgress
-                    progress.visibility =
+                    this@WebViewActivity.progress.progress = newProgress
+                    this@WebViewActivity.progress.visibility =
                         if (newProgress >= 100) ProgressBar.GONE else ProgressBar.VISIBLE
                 }
             }
@@ -260,7 +260,7 @@ open class WebViewActivity : ComponentActivity() {
             view.stopLoading()
             view.loadUrl("about:blank")
             view.webChromeClient = null
-            view.webViewClient = null
+            view.webViewClient = WebViewClient()
             (view.parent as? ViewGroup)?.removeView(view)
             view.destroy()
         }
