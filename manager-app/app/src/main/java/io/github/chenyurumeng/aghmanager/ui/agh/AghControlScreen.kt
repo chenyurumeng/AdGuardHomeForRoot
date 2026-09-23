@@ -52,6 +52,8 @@ fun AghControlScreen(
     onBack: () -> Unit,
     onOpenFilters: () -> Unit,
     onOpenQueryLog: () -> Unit,
+    onOpenClients: () -> Unit,
+    onOpenRewrites: () -> Unit,
     onOpenWeb: (String, String) -> Unit
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -247,6 +249,50 @@ fun AghControlScreen(
                         }
                     }
                 }
+            }
+
+            item { SectionHeader("客户端与 DNS Rewrite") }
+            item {
+                ListItem(
+                    modifier = Modifier.clickable(
+                        enabled = state.credentialBound && state.apiAvailable,
+                        onClick = onOpenClients
+                    ),
+                    headlineContent = { Text("Clients") },
+                    supportingContent = {
+                        Text(
+                            if (state.credentialBound && state.apiAvailable) {
+                                "持久客户端、自动发现、客户端专用 DNS 设置"
+                            } else {
+                                "需要先绑定有效 AGH 管理凭据"
+                            }
+                        )
+                    },
+                    trailingContent = {
+                        Icon(Icons.Default.ChevronRight, contentDescription = "打开 Clients")
+                    }
+                )
+            }
+            item {
+                ListItem(
+                    modifier = Modifier.clickable(
+                        enabled = state.credentialBound && state.apiAvailable,
+                        onClick = onOpenRewrites
+                    ),
+                    headlineContent = { Text("DNS Rewrite") },
+                    supportingContent = {
+                        Text(
+                            if (state.credentialBound && state.apiAvailable) {
+                                "域名重写、A/AAAA/CNAME Answer、规则启停"
+                            } else {
+                                "需要先绑定有效 AGH 管理凭据"
+                            }
+                        )
+                    },
+                    trailingContent = {
+                        Icon(Icons.Default.ChevronRight, contentDescription = "打开 DNS Rewrite")
+                    }
+                )
             }
 
             item { SectionHeader("过滤规则") }

@@ -33,6 +33,12 @@ class ComposeMainActivity : ComponentActivity() {
     private val aghQueryLogRepository by lazy {
         AghQueryLogRepository(aghApiRepository)
     }
+    private val aghClientsRepository by lazy {
+        AghClientsRepository(aghApiRepository)
+    }
+    private val aghRewriteRepository by lazy {
+        AghRewriteRepository(aghApiRepository)
+    }
     private val orchestrator = SystemOrchestrator(statusRepository)
     private val boxController = BoxController(statusRepository)
     private val aghController = AghController(statusRepository)
@@ -58,6 +64,8 @@ class ComposeMainActivity : ComponentActivity() {
                     aghApiRepository = aghApiRepository,
                     aghFilteringRepository = aghFilteringRepository,
                     aghQueryLogRepository = aghQueryLogRepository,
+                    aghClientsRepository = aghClientsRepository,
+                    aghRewriteRepository = aghRewriteRepository,
                     orchestrator = orchestrator,
                     boxController = boxController,
                     aghController = aghController,

@@ -64,6 +64,8 @@ fun AppNavigation(
     aghApiRepository: AghApiRepository,
     aghFilteringRepository: AghFilteringRepository,
     aghQueryLogRepository: AghQueryLogRepository,
+    aghClientsRepository: AghClientsRepository,
+    aghRewriteRepository: AghRewriteRepository,
     orchestrator: SystemOrchestrator,
     boxController: BoxController,
     aghController: AghController,
@@ -82,7 +84,9 @@ fun AppNavigation(
         currentRoute?.startsWith("aghControl/") == true ||
         currentRoute?.startsWith("aghFilters/") == true ||
         currentRoute?.startsWith("aghRules/") == true ||
-        currentRoute?.startsWith("aghQueryLog/") == true
+        currentRoute?.startsWith("aghQueryLog/") == true ||
+        currentRoute?.startsWith("aghClients/") == true ||
+        currentRoute?.startsWith("aghRewrites/") == true
     val current = destinations.firstOrNull { it.route == currentRoute }
         ?: destinations.firstOrNull { it.route == "box" }
         ?: destinations.first()
@@ -104,7 +108,7 @@ fun AppNavigation(
                             Text(current.label)
                             if (currentRoute == "home") {
                                 Text(
-                                    "Box & AGH Manager · v0.5.0-rc9",
+                                    "Box & AGH Manager · v0.5.0-rc11",
                                     style = androidx.compose.material3.MaterialTheme.typography.labelSmall
                                 )
                             }
@@ -292,7 +296,65 @@ fun AppNavigation(
                     onOpenQueryLog = {
                         navController.navigate("aghQueryLog/" + instance.key)
                     },
+                    onOpenClients = {
+                        navController.navigate("aghClients/" + instance.key)
+                    },
+                    onOpenRewrites = {
+                        navController.navigate("aghRewrites/" + instance.key)
+                    },
                     onOpenWeb = onOpenAghWeb
+                )
+            }
+            composable(
+                route = "aghClients/{instance}",
+                arguments = listOf(
+                    androidx.navigation.navArgument("instance") {
+                        type = androidx.navigation.NavType.StringType
+                    }
+                )
+            ) { entry ->
+                val instance = io.github.chenyurumeng.aghmanager.model.AghInstance.fromKey(
+                    entry.arguments?.getString("instance")
+                )
+                val vm: AghClientsViewModel = viewModel(
+                    factory = AghClientsViewModel.Factory(
+                        instance = instance,
+                        repository = aghClientsRepository
+                    )
+                )
+                LaunchedEffect(vm) {
+                    vm.messages.collect { snackbarHostState.showSnackbar(it) }
+                }
+                AghClientsScreen(
+                    viewModel = vm,
+                    contentPadding = innerPadding,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable(
+                route = "aghRewrites/{instance}",
+                arguments = listOf(
+                    androidx.navigation.navArgument("instance") {
+                        type = androidx.navigation.NavType.StringType
+                    }
+                )
+            ) { entry ->
+                val instance = io.github.chenyurumeng.aghmanager.model.AghInstance.fromKey(
+                    entry.arguments?.getString("instance")
+                )
+                val vm: AghRewritesViewModel = viewModel(
+                    factory = AghRewritesViewModel.Factory(
+                        instance = instance,
+                        repository = aghRewriteRepository
+                    )
+                )
+                LaunchedEffect(vm) {
+                    vm.messages.collect { snackbarHostState.showSnackbar(it) }
+                }
+                AghRewritesScreen(
+                    viewModel = vm,
+                    contentPadding = innerPadding,
+                    onBack = { navController.popBackStack() }
                 )
             }
             composable(
