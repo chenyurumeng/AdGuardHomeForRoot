@@ -12,8 +12,8 @@ android {
         applicationId "io.github.chenyurumeng.aghmanager"
         minSdk 26
         targetSdk 35
-        versionCode 29
-        versionName "0.5.0-rc19"
+        versionCode 30
+        versionName "0.5.0-rc20"
     }
 
     buildTypes {
@@ -52,4 +52,5 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.8.7'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
     implementation 'org.mindrot:jbcrypt:0.4'
+    testImplementation 'junit:junit:4.13.2'
 }

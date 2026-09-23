@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 
 class BoxViewModel(
     private val statusRepository: StatusRepository,
@@ -34,15 +35,25 @@ class BoxViewModel(
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 2)
     val messages = _messages.asSharedFlow()
 
+    private val refreshing = AtomicBoolean(false)
+
     init {
         refresh()
     }
 
     fun refresh() {
-        if (_busy.value || _configState.value.applying) return
+        if (
+            _busy.value ||
+            _configState.value.applying ||
+            !refreshing.compareAndSet(false, true)
+        ) return
         viewModelScope.launch {
-            statusRepository.refresh()
-            reloadConfig(preservePending = true)
+            try {
+                statusRepository.refresh()
+                reloadConfig(preservePending = true)
+            } finally {
+                refreshing.set(false)
+            }
         }
     }
 
@@ -145,9 +156,9 @@ class BoxViewModel(
 
     private fun runAction(label: String, block: suspend () -> ShellResult) {
         if (_busy.value || _configState.value.applying) return
+        _busy.value = true
 
         viewModelScope.launch {
-            _busy.value = true
             try {
                 val result = block()
                 reloadConfig(preservePending = true)

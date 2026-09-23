@@ -117,7 +117,7 @@ fun SettingsScreen(
         }
 
         item { SectionHeader("关于") }
-        item { InfoRow("版本", "0.5.0-rc19") }
+        item { InfoRow("版本", "0.5.0-rc20") }
         item { HorizontalDivider() }
         item { InfoRow("Box 后端", StatusRepository.BOX_SERVICE) }
         item { HorizontalDivider() }

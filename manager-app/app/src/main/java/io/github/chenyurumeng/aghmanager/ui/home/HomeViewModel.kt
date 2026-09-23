@@ -44,8 +44,8 @@ class HomeViewModel(
 
     fun restartNetwork() {
         if (_restarting.value) return
+        _restarting.value = true
         viewModelScope.launch {
-            _restarting.value = true
             try {
                 val result = orchestrator.restartNetwork()
                 _messages.emit(

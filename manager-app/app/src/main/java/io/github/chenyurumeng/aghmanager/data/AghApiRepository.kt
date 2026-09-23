@@ -229,8 +229,7 @@ class AghApiRepository(
                 throw IllegalStateException(
                     when (code) {
                         401, 403 -> "AGH 管理凭据无效或未绑定"
-                        else -> "AGH API HTTP " + code +
-                            if (response.isBlank()) "" else ": " + response.take(200)
+                        else -> "AGH API HTTP " + code
                     }
                 )
             }

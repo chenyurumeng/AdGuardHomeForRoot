@@ -29,9 +29,9 @@ class HealthCenterViewModel(
     }
 
     fun refresh() {
-        if (_state.value.repairing != null) return
+        if (_state.value.loading || _state.value.repairing != null) return
+        _state.value = _state.value.copy(loading = true, error = "")
         viewModelScope.launch {
-            _state.value = _state.value.copy(loading = true, error = "")
             repository.load()
                 .onSuccess {
                     _state.value = _state.value.copy(
@@ -55,9 +55,9 @@ class HealthCenterViewModel(
     }
 
     fun repair(action: HealthRepairAction) {
-        if (_state.value.repairing != null) return
+        if (_state.value.loading || _state.value.repairing != null) return
+        _state.value = _state.value.copy(repairing = action, error = "")
         viewModelScope.launch {
-            _state.value = _state.value.copy(repairing = action, error = "")
             repository.repair(action)
                 .onSuccess {
                     _messages.emit(action.label + "完成，正在重新检查")

@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 
 class AghViewModel(
     private val statusRepository: StatusRepository,
@@ -24,9 +25,17 @@ class AghViewModel(
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 2)
     val messages = _messages.asSharedFlow()
 
+    private val refreshing = AtomicBoolean(false)
+
     fun refresh() {
-        if (_busyAction.value != null) return
-        viewModelScope.launch { statusRepository.refresh() }
+        if (_busyAction.value != null || !refreshing.compareAndSet(false, true)) return
+        viewModelScope.launch {
+            try {
+                statusRepository.refresh()
+            } finally {
+                refreshing.set(false)
+            }
+        }
     }
 
     fun startAll() = runAction("启动全部 AGH") { aghController.startAll() }
@@ -43,9 +52,9 @@ class AghViewModel(
 
     private fun runAction(label: String, action: suspend () -> ShellResult) {
         if (_busyAction.value != null) return
+        _busyAction.value = label
 
         viewModelScope.launch {
-            _busyAction.value = label
             try {
                 val result = action()
                 _messages.emit(

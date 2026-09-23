@@ -423,10 +423,7 @@ class MihomoApiRepository {
                 .orEmpty()
 
             if (code !in 200..299) {
-                throw IllegalStateException(
-                    "Mihomo API HTTP " + code +
-                        if (responseBody.isBlank()) "" else ": " + responseBody.take(240)
-                )
+                throw IllegalStateException("Mihomo API HTTP " + code)
             }
 
             HttpResponse(code, responseBody)

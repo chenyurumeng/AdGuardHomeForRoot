@@ -32,7 +32,7 @@
 | RC17 | 0.5.0-rc17 | 27 | Backup / Restore / Export / Migration | COMPLETE |
 | RC18 | 0.5.0-rc18 | 28 | Diagnostics / Health Center / consistency checks | COMPLETE |
 | RC19 | 0.5.0-rc19 | 29 | UI / performance / lifecycle / error hardening | COMPLETE |
-| RC20 | 0.5.0-rc20 | 30 | Feature freeze and full regression | Required |
+| RC20 | 0.5.0-rc20 | 30 | Feature freeze and full regression | IN PROGRESS |
 | Release | 0.6.0 | 31 | Signed release, notes, tag and stable integration | Final |
 
 If encrypted-DNS server management is not required, RC16 may be skipped while keeping later version planning explicit rather than silently reusing its version.
