@@ -4,8 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import io.github.chenyurumeng.aghmanager.data.AghBlockedServicesRepository
+import io.github.chenyurumeng.aghmanager.model.AGH_SCHEDULE_DAY_KEYS
+import io.github.chenyurumeng.aghmanager.model.AghBlockedScheduleDayDraft
+import io.github.chenyurumeng.aghmanager.model.AghBlockedScheduleDraft
 import io.github.chenyurumeng.aghmanager.model.AghBlockedServicesUiState
 import io.github.chenyurumeng.aghmanager.model.AghInstance
+import io.github.chenyurumeng.aghmanager.model.toDraft
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -37,7 +41,8 @@ class AghBlockedServicesViewModel(
                         services = snapshot.services,
                         currentIds = snapshot.selectedIds,
                         pendingIds = snapshot.selectedIds,
-                        scheduleJson = snapshot.scheduleJson,
+                        currentSchedule = snapshot.schedule,
+                        pendingSchedule = snapshot.schedule.toDraft(),
                         error = ""
                     )
                 }
@@ -70,9 +75,57 @@ class AghBlockedServicesViewModel(
         _state.value = _state.value.copy(pendingIds = next, error = "")
     }
 
+    fun setTimeZone(value: String) {
+        _state.value = _state.value.copy(
+            pendingSchedule = _state.value.pendingSchedule.copy(timeZone = value),
+            error = ""
+        )
+    }
+
+    fun setDayEnabled(key: String, enabled: Boolean) {
+        updateDay(key) { it.copy(enabled = enabled) }
+    }
+
+    fun setDayStart(key: String, value: String) {
+        updateDay(key) { it.copy(startText = value) }
+    }
+
+    fun setDayEnd(key: String, value: String) {
+        updateDay(key) { it.copy(endText = value) }
+    }
+
+    fun applyScheduleTemplate(template: String) {
+        val selected = when (template) {
+            "all" -> AGH_SCHEDULE_DAY_KEYS.toSet()
+            "weekdays" -> setOf("mon", "tue", "wed", "thu", "fri")
+            "weekend" -> setOf("sat", "sun")
+            "clear" -> emptySet()
+            else -> return
+        }
+
+        val nextDays = AGH_SCHEDULE_DAY_KEYS.associateWith { key ->
+            val old = _state.value.pendingSchedule.days[key] ?: AghBlockedScheduleDayDraft()
+            if (template == "clear") {
+                old.copy(enabled = false)
+            } else {
+                old.copy(
+                    enabled = key in selected,
+                    startText = if (key in selected) "00:00" else old.startText,
+                    endText = if (key in selected) "24:00" else old.endText
+                )
+            }
+        }
+
+        _state.value = _state.value.copy(
+            pendingSchedule = _state.value.pendingSchedule.copy(days = nextDays),
+            error = ""
+        )
+    }
+
     fun discard() {
         _state.value = _state.value.copy(
             pendingIds = _state.value.currentIds,
+            pendingSchedule = _state.value.currentSchedule.toDraft(),
             error = ""
         )
     }
@@ -86,27 +139,21 @@ class AghBlockedServicesViewModel(
             repository.update(
                 instance = instance,
                 baselineIds = snapshot.currentIds,
-                selectedIds = snapshot.pendingIds
-            ).onSuccess {
-                repository.load(instance)
-                    .onSuccess { latest ->
-                        _state.value = _state.value.copy(
-                            loading = false,
-                            applying = false,
-                            services = latest.services,
-                            currentIds = latest.selectedIds,
-                            pendingIds = latest.selectedIds,
-                            scheduleJson = latest.scheduleJson,
-                            error = ""
-                        )
-                        _messages.emit("Blocked Services 已应用")
-                    }
-                    .onFailure {
-                        _state.value = _state.value.copy(
-                            applying = false,
-                            error = it.message ?: "已应用，但刷新 Blocked Services 失败"
-                        )
-                    }
+                baselineSchedule = snapshot.currentSchedule,
+                selectedIds = snapshot.pendingIds,
+                pendingSchedule = snapshot.pendingSchedule
+            ).onSuccess { latest ->
+                _state.value = _state.value.copy(
+                    loading = false,
+                    applying = false,
+                    services = latest.services,
+                    currentIds = latest.selectedIds,
+                    pendingIds = latest.selectedIds,
+                    currentSchedule = latest.schedule,
+                    pendingSchedule = latest.schedule.toDraft(),
+                    error = ""
+                )
+                _messages.emit("Blocked Services 与不生效时段已应用")
             }.onFailure {
                 _state.value = _state.value.copy(
                     applying = false,
@@ -115,6 +162,19 @@ class AghBlockedServicesViewModel(
                 _messages.emit(it.message ?: "Blocked Services 应用失败")
             }
         }
+    }
+
+    private fun updateDay(
+        key: String,
+        transform: (AghBlockedScheduleDayDraft) -> AghBlockedScheduleDayDraft
+    ) {
+        if (key !in AGH_SCHEDULE_DAY_KEYS) return
+        val days = _state.value.pendingSchedule.days.toMutableMap()
+        days[key] = transform(days[key] ?: AghBlockedScheduleDayDraft())
+        _state.value = _state.value.copy(
+            pendingSchedule = _state.value.pendingSchedule.copy(days = days),
+            error = ""
+        )
     }
 
     class Factory(
