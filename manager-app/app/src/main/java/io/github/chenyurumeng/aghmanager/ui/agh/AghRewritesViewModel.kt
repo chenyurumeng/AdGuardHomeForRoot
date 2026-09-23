@@ -67,9 +67,10 @@ class AghRewritesViewModel(
 
     fun applySettings() {
         val enabled = _state.value.pendingEnabled
-        mutate(if (enabled) "DNS Rewrite 已启用" else "DNS Rewrite 已停用") {
-            repository.setEnabled(instance, enabled)
-        }
+        mutate(
+            message = if (enabled) "DNS Rewrite 已启用" else "DNS Rewrite 已停用",
+            block = { repository.setEnabled(instance, enabled) }
+        )
     }
 
     fun add(rule: AghRewriteRule, onComplete: (Boolean) -> Unit = {}) {
