@@ -1,0 +1,160 @@
+name: Release Box & AGH Manager 0.6.0
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Create v0.6.0 tag and GitHub Release after signed build
+        type: boolean
+        required: true
+        default: false
+      confirmation:
+        description: Type RELEASE-0.6.0 only when publish=true
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: manager-release-0.6.0
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v7
+        with:
+          ref: feat/manager-compose-v0.5
+          fetch-depth: 0
+
+      - name: Verify release version and publication gate
+        shell: bash
+        env:
+          PUBLISH: ${{ inputs.publish }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+
+          grep -Eq 'versionCode[[:space:]]+31([[:space:]]|$)' manager-app/app/build.gradle
+          grep -Eq 'versionName[[:space:]]+"0\.6\.0"' manager-app/app/build.gradle
+
+          SOURCE_SHA="$(git rev-parse HEAD)"
+          echo "SOURCE_SHA=$SOURCE_SHA" >> "$GITHUB_ENV"
+
+          if [[ "$PUBLISH" == "true" ]]; then
+            if [[ "$CONFIRMATION" != "RELEASE-0.6.0" ]]; then
+              echo "Publishing requires confirmation exactly: RELEASE-0.6.0" >&2
+              exit 20
+            fi
+
+            STABLE_SHA="$(git ls-remote origin refs/heads/feat/agh-manager-apk | awk '{print $1}')"
+            if [[ -z "$STABLE_SHA" || "$STABLE_SHA" != "$SOURCE_SHA" ]]; then
+              echo "Stable branch is not integrated to the exact release source." >&2
+              echo "source=$SOURCE_SHA stable=${STABLE_SHA:-missing}" >&2
+              exit 21
+            fi
+
+            if git ls-remote --exit-code --tags origin refs/tags/v0.6.0 >/dev/null 2>&1; then
+              echo "Tag v0.6.0 already exists; refusing duplicate publication." >&2
+              exit 22
+            fi
+          fi
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="$RUNNER_TEMP/android-sdk"
+          mkdir -p "$SDK_ROOT/cmdline-tools"
+          curl -fsSL -o "$RUNNER_TEMP/cmdline-tools.zip"             https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -q "$RUNNER_TEMP/cmdline-tools.zip" -d "$RUNNER_TEMP/cmdline-tools-unpack"
+          mv "$RUNNER_TEMP/cmdline-tools-unpack/cmdline-tools" "$SDK_ROOT/cmdline-tools/latest"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "$SDK_ROOT/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
+          yes | "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+          "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"             "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '8.9'
+
+      - name: Prepare release signing
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.MANAGER_RELEASE_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.MANAGER_RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.MANAGER_RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.MANAGER_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          for value in KEYSTORE_B64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [[ -z "${!value:-}" ]]; then
+              echo "Required release signing secret is missing: $value" >&2
+              exit 30
+            fi
+          done
+
+          KEYSTORE_PATH="$RUNNER_TEMP/manager-release.jks"
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
+          chmod 600 "$KEYSTORE_PATH"
+
+          echo "MANAGER_RELEASE_STORE_FILE=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+          echo "MANAGER_RELEASE_STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "MANAGER_RELEASE_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "MANAGER_RELEASE_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Test, lint and assemble signed release
+        working-directory: manager-app
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:test :app:lintRelease :app:assembleRelease
+
+      - name: Verify signature and package release files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APK="manager-app/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify             --verbose             --print-certs             "$APK"
+
+          mkdir -p out
+          cp "$APK" out/Box-AGH-Manager-v0.6.0.apk
+          (
+            cd out
+            sha256sum Box-AGH-Manager-v0.6.0.apk > Box-AGH-Manager-v0.6.0.apk.sha256
+          )
+
+      - name: Upload signed release candidate
+        uses: actions/upload-artifact@v7
+        with:
+          name: Box-AGH-Manager-v0.6.0-signed
+          path: |
+            out/Box-AGH-Manager-v0.6.0.apk
+            out/Box-AGH-Manager-v0.6.0.apk.sha256
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish GitHub Release
+        if: ${{ inputs.publish }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create v0.6.0             out/Box-AGH-Manager-v0.6.0.apk             out/Box-AGH-Manager-v0.6.0.apk.sha256             --repo "$GITHUB_REPOSITORY"             --target "$SOURCE_SHA"             --title "Box & AGH Manager v0.6.0"             --notes-file docs/releases/manager-0.6.0.md
