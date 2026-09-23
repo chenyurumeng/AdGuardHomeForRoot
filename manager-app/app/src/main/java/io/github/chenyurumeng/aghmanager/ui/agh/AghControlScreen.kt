@@ -54,6 +54,8 @@ fun AghControlScreen(
     onOpenQueryLog: () -> Unit,
     onOpenClients: () -> Unit,
     onOpenRewrites: () -> Unit,
+    onOpenAccess: () -> Unit,
+    onOpenBlockedServices: () -> Unit,
     onOpenWeb: (String, String) -> Unit
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -291,6 +293,50 @@ fun AghControlScreen(
                     },
                     trailingContent = {
                         Icon(Icons.Default.ChevronRight, contentDescription = "打开 DNS Rewrite")
+                    }
+                )
+            }
+
+            item { SectionHeader("安全与访问控制") }
+            item {
+                ListItem(
+                    modifier = Modifier.clickable(
+                        enabled = state.credentialBound && state.apiAvailable,
+                        onClick = onOpenAccess
+                    ),
+                    headlineContent = { Text("Access Control") },
+                    supportingContent = {
+                        Text(
+                            if (state.credentialBound && state.apiAvailable) {
+                                "允许/禁止 DNS 客户端与禁止域名"
+                            } else {
+                                "需要先绑定有效 AGH 管理凭据"
+                            }
+                        )
+                    },
+                    trailingContent = {
+                        Icon(Icons.Default.ChevronRight, contentDescription = "打开 Access Control")
+                    }
+                )
+            }
+            item {
+                ListItem(
+                    modifier = Modifier.clickable(
+                        enabled = state.credentialBound && state.apiAvailable,
+                        onClick = onOpenBlockedServices
+                    ),
+                    headlineContent = { Text("Blocked Services") },
+                    supportingContent = {
+                        Text(
+                            if (state.credentialBound && state.apiAvailable) {
+                                "按服务阻止网站/应用，保留现有时间表"
+                            } else {
+                                "需要先绑定有效 AGH 管理凭据"
+                            }
+                        )
+                    },
+                    trailingContent = {
+                        Icon(Icons.Default.ChevronRight, contentDescription = "打开 Blocked Services")
                     }
                 )
             }

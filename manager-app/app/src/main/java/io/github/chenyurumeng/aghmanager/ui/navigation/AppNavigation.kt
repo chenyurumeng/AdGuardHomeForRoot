@@ -66,6 +66,8 @@ fun AppNavigation(
     aghQueryLogRepository: AghQueryLogRepository,
     aghClientsRepository: AghClientsRepository,
     aghRewriteRepository: AghRewriteRepository,
+    aghAccessRepository: AghAccessRepository,
+    aghBlockedServicesRepository: AghBlockedServicesRepository,
     orchestrator: SystemOrchestrator,
     boxController: BoxController,
     aghController: AghController,
@@ -86,7 +88,9 @@ fun AppNavigation(
         currentRoute?.startsWith("aghRules/") == true ||
         currentRoute?.startsWith("aghQueryLog/") == true ||
         currentRoute?.startsWith("aghClients/") == true ||
-        currentRoute?.startsWith("aghRewrites/") == true
+        currentRoute?.startsWith("aghRewrites/") == true ||
+        currentRoute?.startsWith("aghAccess/") == true ||
+        currentRoute?.startsWith("aghBlockedServices/") == true
     val current = destinations.firstOrNull { it.route == currentRoute }
         ?: destinations.firstOrNull { it.route == "box" }
         ?: destinations.first()
@@ -108,7 +112,7 @@ fun AppNavigation(
                             Text(current.label)
                             if (currentRoute == "home") {
                                 Text(
-                                    "Box & AGH Manager · v0.5.0-rc11",
+                                    "Box & AGH Manager · v0.5.0-rc12",
                                     style = androidx.compose.material3.MaterialTheme.typography.labelSmall
                                 )
                             }
@@ -302,7 +306,65 @@ fun AppNavigation(
                     onOpenRewrites = {
                         navController.navigate("aghRewrites/" + instance.key)
                     },
+                    onOpenAccess = {
+                        navController.navigate("aghAccess/" + instance.key)
+                    },
+                    onOpenBlockedServices = {
+                        navController.navigate("aghBlockedServices/" + instance.key)
+                    },
                     onOpenWeb = onOpenAghWeb
+                )
+            }
+            composable(
+                route = "aghAccess/{instance}",
+                arguments = listOf(
+                    androidx.navigation.navArgument("instance") {
+                        type = androidx.navigation.NavType.StringType
+                    }
+                )
+            ) { entry ->
+                val instance = io.github.chenyurumeng.aghmanager.model.AghInstance.fromKey(
+                    entry.arguments?.getString("instance")
+                )
+                val vm: AghAccessViewModel = viewModel(
+                    factory = AghAccessViewModel.Factory(
+                        instance = instance,
+                        repository = aghAccessRepository
+                    )
+                )
+                LaunchedEffect(vm) {
+                    vm.messages.collect { snackbarHostState.showSnackbar(it) }
+                }
+                AghAccessScreen(
+                    viewModel = vm,
+                    contentPadding = innerPadding,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable(
+                route = "aghBlockedServices/{instance}",
+                arguments = listOf(
+                    androidx.navigation.navArgument("instance") {
+                        type = androidx.navigation.NavType.StringType
+                    }
+                )
+            ) { entry ->
+                val instance = io.github.chenyurumeng.aghmanager.model.AghInstance.fromKey(
+                    entry.arguments?.getString("instance")
+                )
+                val vm: AghBlockedServicesViewModel = viewModel(
+                    factory = AghBlockedServicesViewModel.Factory(
+                        instance = instance,
+                        repository = aghBlockedServicesRepository
+                    )
+                )
+                LaunchedEffect(vm) {
+                    vm.messages.collect { snackbarHostState.showSnackbar(it) }
+                }
+                AghBlockedServicesScreen(
+                    viewModel = vm,
+                    contentPadding = innerPadding,
+                    onBack = { navController.popBackStack() }
                 )
             }
             composable(
