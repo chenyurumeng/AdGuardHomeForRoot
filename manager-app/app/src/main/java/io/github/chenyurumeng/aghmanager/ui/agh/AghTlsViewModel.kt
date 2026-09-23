@@ -120,6 +120,12 @@ class AghTlsViewModel(
         }
     }
 
+    fun reportError(message: String) {
+        _state.value = _state.value.copy(
+            error = message.take(300)
+        )
+    }
+
     fun discard() {
         val current = _state.value.current ?: return
         _state.value = _state.value.copy(

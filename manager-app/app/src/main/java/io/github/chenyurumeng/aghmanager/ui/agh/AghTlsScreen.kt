@@ -51,6 +51,7 @@ import io.github.chenyurumeng.aghmanager.model.AghTlsValidation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,7 +74,9 @@ fun AghTlsScreen(
             scope.launch {
                 readTextFile(context, uri)
                     .onSuccess(viewModel::setCertificatePem)
-                    .onFailure { viewModel.update { draft -> draft } }
+                    .onFailure {
+                        viewModel.reportError(it.message ?: "证书文件读取失败")
+                    }
             }
         }
     }
@@ -84,7 +87,9 @@ fun AghTlsScreen(
             scope.launch {
                 readTextFile(context, uri)
                     .onSuccess(viewModel::setPrivateKeyPem)
-                    .onFailure { viewModel.update { draft -> draft } }
+                    .onFailure {
+                        viewModel.reportError(it.message ?: "私钥文件读取失败")
+                    }
             }
         }
     }
@@ -140,8 +145,10 @@ fun AghTlsScreen(
                         )
                         if (current != null) {
                             Text(
-                                "Plain DNS：" + if (current.servePlainDns) "保留" else "关闭" +
-                                    " · Force HTTPS：" + if (current.forceHttps) "开启" else "关闭",
+                                "Plain DNS：" +
+                                    (if (current.servePlainDns) "保留" else "关闭") +
+                                    " · Force HTTPS：" +
+                                    (if (current.forceHttps) "开启" else "关闭"),
                                 modifier = Modifier.padding(top = 6.dp),
                                 style = MaterialTheme.typography.bodySmall
                             )
@@ -529,9 +536,19 @@ private suspend fun readTextFile(context: Context, uri: Uri): Result<String> =
     withContext(Dispatchers.IO) {
         runCatching {
             val bytes = context.contentResolver.openInputStream(uri)?.use { input ->
-                val data = input.readBytes()
-                require(data.size <= 512 * 1024) { "证书/私钥文件不能超过 512 KiB" }
-                data
+                val output = ByteArrayOutputStream()
+                val buffer = ByteArray(8 * 1024)
+                var total = 0
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    total += count
+                    require(total <= 512 * 1024) {
+                        "证书/私钥文件不能超过 512 KiB"
+                    }
+                    output.write(buffer, 0, count)
+                }
+                output.toByteArray()
             } ?: throw IllegalStateException("无法读取所选文件")
             bytes.toString(Charsets.UTF_8)
         }
