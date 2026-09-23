@@ -26,7 +26,8 @@ import io.github.chenyurumeng.aghmanager.model.SystemState
 fun SettingsScreen(
     viewModel: SettingsViewModel,
     contentPadding: PaddingValues,
-    onOpenBackup: () -> Unit
+    onOpenBackup: () -> Unit,
+    onOpenHealthCenter: () -> Unit
 ) {
     val refreshInterval by viewModel.refreshInterval.collectAsStateWithLifecycle()
     val generating by viewModel.generatingDiagnostic.collectAsStateWithLifecycle()
@@ -78,13 +79,19 @@ fun SettingsScreen(
                 tonalElevation = 2.dp
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("生成 Box、Mihomo、AGH、监听端口、user_stopped 与 NAT_DNS_HIJACK 的统一快照。")
+                    Text("健康中心提供结构化一致性检查；原始诊断报告保留用于排障。")
+                    Button(
+                        onClick = onOpenHealthCenter,
+                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                    ) {
+                        Text("打开健康中心")
+                    }
                     Button(
                         onClick = viewModel::generateDiagnostic,
                         enabled = !generating,
-                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                     ) {
-                        Text(if (generating) "正在生成…" else "复制完整诊断报告")
+                        Text(if (generating) "正在生成…" else "复制原始诊断报告")
                     }
                 }
             }
@@ -110,7 +117,7 @@ fun SettingsScreen(
         }
 
         item { SectionHeader("关于") }
-        item { InfoRow("版本", "0.5.0-rc17") }
+        item { InfoRow("版本", "0.5.0-rc18") }
         item { HorizontalDivider() }
         item { InfoRow("Box 后端", StatusRepository.BOX_SERVICE) }
         item { HorizontalDivider() }

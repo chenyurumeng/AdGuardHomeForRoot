@@ -22,6 +22,7 @@ class ComposeMainActivity : ComponentActivity() {
     private val mihomoSubscriptionRepository = MihomoSubscriptionRepository()
     private val logRepository = LogRepository()
     private val diagnosticRepository = DiagnosticRepository()
+    private val healthCenterRepository = HealthCenterRepository()
     private val aghConfigRepository = AghConfigRepository()
     private val aghCredentialStore by lazy { AghCredentialStore(applicationContext) }
     private val aghApiRepository by lazy {
@@ -89,6 +90,7 @@ class ComposeMainActivity : ComponentActivity() {
                     mihomoSubscriptionRepository = mihomoSubscriptionRepository,
                     logRepository = logRepository,
                     diagnosticRepository = diagnosticRepository,
+                    healthCenterRepository = healthCenterRepository,
                     aghConfigRepository = aghConfigRepository,
                     aghCredentialStore = aghCredentialStore,
                     aghApiRepository = aghApiRepository,

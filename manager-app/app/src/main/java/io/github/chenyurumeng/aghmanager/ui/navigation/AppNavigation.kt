@@ -59,6 +59,7 @@ fun AppNavigation(
     mihomoSubscriptionRepository: MihomoSubscriptionRepository,
     logRepository: LogRepository,
     diagnosticRepository: DiagnosticRepository,
+    healthCenterRepository: HealthCenterRepository,
     aghConfigRepository: AghConfigRepository,
     aghCredentialStore: AghCredentialStore,
     aghApiRepository: AghApiRepository,
@@ -98,7 +99,8 @@ fun AppNavigation(
         currentRoute?.startsWith("aghStatistics/") == true ||
         currentRoute?.startsWith("aghProtection/") == true ||
         currentRoute?.startsWith("aghTls/") == true ||
-        currentRoute == "backup"
+        currentRoute == "backup" ||
+        currentRoute == "healthCenter"
     val current = destinations.firstOrNull { it.route == currentRoute }
         ?: destinations.firstOrNull { it.route == "box" }
         ?: destinations.first()
@@ -120,7 +122,7 @@ fun AppNavigation(
                             Text(current.label)
                             if (currentRoute == "home") {
                                 Text(
-                                    "Box & AGH Manager · v0.5.0-rc17",
+                                    "Box & AGH Manager · v0.5.0-rc18",
                                     style = androidx.compose.material3.MaterialTheme.typography.labelSmall
                                 )
                             }
@@ -617,7 +619,27 @@ fun AppNavigation(
                 SettingsScreen(
                     viewModel = vm,
                     contentPadding = innerPadding,
-                    onOpenBackup = { navController.navigate("backup") }
+                    onOpenBackup = { navController.navigate("backup") },
+                    onOpenHealthCenter = { navController.navigate("healthCenter") }
+                )
+            }
+            composable("healthCenter") {
+                val vm: HealthCenterViewModel = viewModel(
+                    factory = HealthCenterViewModel.Factory(healthCenterRepository)
+                )
+                LaunchedEffect(vm) {
+                    vm.messages.collect { snackbarHostState.showSnackbar(it) }
+                }
+                LaunchedEffect(vm, onCopyText) {
+                    vm.copyEvents.collect {
+                        onCopyText("Box & AGH Manager 健康报告", it)
+                        snackbarHostState.showSnackbar("脱敏健康报告已复制")
+                    }
+                }
+                HealthCenterScreen(
+                    viewModel = vm,
+                    contentPadding = innerPadding,
+                    onBack = { navController.popBackStack() }
                 )
             }
             composable("backup") {
