@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 
 class HealthCenterViewModel(
     private val repository: HealthCenterRepository
@@ -24,28 +25,34 @@ class HealthCenterViewModel(
     private val _copyEvents = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val copyEvents = _copyEvents.asSharedFlow()
 
+    private val refreshing = AtomicBoolean(false)
+
     init {
         refresh()
     }
 
     fun refresh() {
-        if (_state.value.loading || _state.value.repairing != null) return
+        if (_state.value.repairing != null || !refreshing.compareAndSet(false, true)) return
         _state.value = _state.value.copy(loading = true, error = "")
         viewModelScope.launch {
-            repository.load()
-                .onSuccess {
-                    _state.value = _state.value.copy(
-                        loading = false,
-                        snapshot = it,
-                        error = ""
-                    )
-                }
-                .onFailure {
-                    _state.value = _state.value.copy(
-                        loading = false,
-                        error = it.message ?: "健康检查失败"
-                    )
-                }
+            try {
+                repository.load()
+                    .onSuccess {
+                        _state.value = _state.value.copy(
+                            loading = false,
+                            snapshot = it,
+                            error = ""
+                        )
+                    }
+                    .onFailure {
+                        _state.value = _state.value.copy(
+                            loading = false,
+                            error = it.message ?: "健康检查失败"
+                        )
+                    }
+            } finally {
+                refreshing.set(false)
+            }
         }
     }
 
@@ -55,7 +62,7 @@ class HealthCenterViewModel(
     }
 
     fun repair(action: HealthRepairAction) {
-        if (_state.value.loading || _state.value.repairing != null) return
+        if (refreshing.get() || _state.value.repairing != null) return
         _state.value = _state.value.copy(repairing = action, error = "")
         viewModelScope.launch {
             repository.repair(action)
