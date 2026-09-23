@@ -49,6 +49,7 @@ class StatusRepository {
             """if [ "${sh}bin" = mihomo ] && [ -x /data/adb/box/bin/mihomo ]; then v=${sh}(/data/adb/box/bin/mihomo -v 2>/dev/null | head -n1); echo "BOX_VERSION=${sh}v"; fi""",
             """controller=${sh}(awk '!/^[[:space:]]*#/ && /external-controller:[[:space:]]/ {print ${sh}2; exit}' /data/adb/box/mihomo/config.yaml 2>/dev/null | tr -d '"')""",
             """[ -n "${sh}controller" ] && echo BOX_CONTROLLER=${sh}controller""",
+            """controller_port=${sh}(printf '%s' "${sh}controller" | sed -n 's/.*:\([0-9][0-9]*\)$/\1/p'); [ -n "${sh}controller_port" ] || controller_port=9090; echo BOX_CONTROLLER_PORT=${sh}controller_port""",
             "echo '===AGH_CONFIG==='",
             """dweb=${sh}(awk '/^http:/{inhttp=1;next} inhttp && /^  address:/{print ${sh}2; exit} /^[^ ]/{inhttp=0}' /data/adb/agh/instances/domestic/AdGuardHome.yaml 2>/dev/null | tr -d '"')""",
             """fweb=${sh}(awk '/^http:/{inhttp=1;next} inhttp && /^  address:/{print ${sh}2; exit} /^[^ ]/{inhttp=0}' /data/adb/agh/instances/foreign/AdGuardHome.yaml 2>/dev/null | tr -d '"')""",
@@ -59,7 +60,8 @@ class StatusRepository {
             """fport=${sh}(sed -n 's/^foreign_dns_port="\([^"]*\)".*/\1/p' ${BOX_SETTINGS} 2>/dev/null | head -n1); [ -n "${sh}fport" ] || fport=5592""",
             """if ss -lntu 2>/dev/null | grep -qE '[:.]'${sh}dport'([[:space:]]|${sh})'; then echo PORT_DOMESTIC=up; else echo PORT_DOMESTIC=down; fi""",
             """if ss -lntu 2>/dev/null | grep -qE '[:.]'${sh}fport'([[:space:]]|${sh})'; then echo PORT_FOREIGN=up; else echo PORT_FOREIGN=down; fi""",
-            """for p in 1053 9090; do if ss -lntu 2>/dev/null | grep -qE '[:.]'${sh}p'([[:space:]]|${sh})'; then echo PORT_${sh}p=up; else echo PORT_${sh}p=down; fi; done""",
+            """if ss -lntu 2>/dev/null | grep -qE '[:.]1053([[:space:]]|${sh})'; then echo PORT_1053=up; else echo PORT_1053=down; fi""",
+            """if ss -lntu 2>/dev/null | grep -qE '[:.]'${sh}controller_port'([[:space:]]|${sh})'; then echo PORT_CONTROLLER=up; else echo PORT_CONTROLLER=down; fi""",
             "echo '===DNS_RULES==='",
             "iptables -t nat -S NAT_DNS_HIJACK 2>/dev/null || true",
             "echo '===END==='",
@@ -100,6 +102,7 @@ class StatusRepository {
         var boxBin = ""
         var boxVersion = ""
         var boxController = ""
+        var controllerPort = 9090
         var proxyMode = ""
         var networkMode = ""
         var dnsHijackMode = ""
@@ -133,6 +136,8 @@ class StatusRepository {
                 line.startsWith("BOX_BIN=") -> boxBin = afterEquals(line)
                 line.startsWith("BOX_VERSION=") -> boxVersion = afterEquals(line)
                 line.startsWith("BOX_CONTROLLER=") -> boxController = afterEquals(line)
+                line.startsWith("BOX_CONTROLLER_PORT=") ->
+                    afterEquals(line).toIntOrNull()?.let { controllerPort = it }
                 line.startsWith("proxy_mode=") -> proxyMode = cleanSetting(afterEquals(line))
                 line.startsWith("network_mode=") -> networkMode = cleanSetting(afterEquals(line))
                 line.startsWith("dns_hijack_mode=") -> dnsHijackMode = cleanSetting(afterEquals(line))
@@ -148,7 +153,7 @@ class StatusRepository {
                 line == "PORT_DOMESTIC=up" -> domesticListener = true
                 line == "PORT_FOREIGN=up" -> foreignListener = true
                 line == "PORT_1053=up" -> port1053 = true
-                line == "PORT_9090=up" -> port9090 = true
+                line == "PORT_CONTROLLER=up" -> port9090 = true
                 inDnsRules && line.contains("--to-ports $domesticDnsPort") -> routeDomestic = true
                 inDnsRules && line.contains("--to-ports $foreignDnsPort") -> routeForeign = true
                 inDnsRules && line.contains("--to-ports 1053") -> route1053 = true
@@ -191,6 +196,7 @@ class StatusRepository {
                 dnsHijackMode = dnsHijackMode,
                 ipv6 = ipv6,
                 controller = boxController,
+                controllerPort = controllerPort,
                 userStopped = userStopped
             ),
             domestic = AghInstanceState("Domestic", domesticDnsPort, domesticWebPort, domesticUp, domesticPid),

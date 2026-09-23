@@ -178,11 +178,20 @@ class AppRoutingViewModel(
     }
 
     private fun updateState(newState: AppRoutingUiState) {
-        val visible = filterApps(
-            apps = newState.apps,
-            filter = newState.filter,
-            query = newState.query
-        )
+        val previous = _state.value
+        val filterInputsUnchanged =
+            newState.apps === previous.apps &&
+                newState.filter == previous.filter &&
+                newState.query == previous.query
+        val visible = if (filterInputsUnchanged) {
+            previous.visibleApps
+        } else {
+            filterApps(
+                apps = newState.apps,
+                filter = newState.filter,
+                query = newState.query
+            )
+        }
         _state.value = newState.copy(visibleApps = visible)
     }
 

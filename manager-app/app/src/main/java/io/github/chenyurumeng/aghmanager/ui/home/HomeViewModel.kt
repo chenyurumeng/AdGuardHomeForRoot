@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 
 class HomeViewModel(
     private val statusRepository: StatusRepository,
@@ -26,8 +27,15 @@ class HomeViewModel(
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val messages = _messages.asSharedFlow()
 
+    private val refreshMutex = Mutex()
+
     suspend fun refreshNow() {
-        if (!_restarting.value) statusRepository.refresh()
+        if (_restarting.value || !refreshMutex.tryLock()) return
+        try {
+            statusRepository.refresh()
+        } finally {
+            refreshMutex.unlock()
+        }
     }
 
     fun refresh() {

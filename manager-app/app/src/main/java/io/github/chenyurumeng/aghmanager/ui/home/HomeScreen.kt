@@ -10,7 +10,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -21,6 +21,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -46,7 +47,7 @@ fun HomeScreen(viewModel: HomeViewModel, contentPadding: PaddingValues) {
     val restarting by viewModel.restarting.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
     val listState = rememberLazyListState()
-    var confirmRestart by remember { mutableStateOf(false) }
+    var confirmRestart by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(lifecycleOwner, viewModel) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -81,20 +82,20 @@ fun HomeScreen(viewModel: HomeViewModel, contentPadding: PaddingValues) {
                 stoppedText = if (state.box.userStopped) "主动停止" else "已停止"
             )
         }
-        item { Divider() }
+        item { HorizontalDivider() }
         item {
             ServiceRow(
                 title = "Domestic AGH",
-                detail = "DNS :5591 · Web :3000" +
+                detail = "DNS :" + state.domestic.dnsPort + " · Web :" + state.domestic.webPort +
                     if (state.domestic.pid.isBlank()) "" else " · PID " + state.domestic.pid,
                 running = state.domestic.running
             )
         }
-        item { Divider() }
+        item { HorizontalDivider() }
         item {
             ServiceRow(
                 title = "Foreign AGH",
-                detail = "DNS :5592 · Web :3001" +
+                detail = "DNS :" + state.foreign.dnsPort + " · Web :" + state.foreign.webPort +
                     if (state.foreign.pid.isBlank()) "" else " · PID " + state.foreign.pid,
                 running = state.foreign.running
             )
@@ -102,7 +103,7 @@ fun HomeScreen(viewModel: HomeViewModel, contentPadding: PaddingValues) {
 
         item { SectionHeader("DNS 路由") }
         item { SettingRow("代理模式", state.routingMode.label) }
-        item { Divider() }
+        item { HorizontalDivider() }
 
         when (state.routingMode) {
             RoutingMode.CORE -> {
@@ -115,27 +116,27 @@ fun HomeScreen(viewModel: HomeViewModel, contentPadding: PaddingValues) {
             }
             RoutingMode.WHITELIST -> {
                 item { SettingRow("白名单应用", state.foreignDnsTarget()) }
-                item { Divider() }
+                item { HorizontalDivider() }
                 item { SettingRow("其它应用", state.domesticDnsTarget()) }
             }
             RoutingMode.BLACKLIST -> {
                 item { SettingRow("黑名单应用", state.domesticDnsTarget()) }
-                item { Divider() }
+                item { HorizontalDivider() }
                 item { SettingRow("其它应用", state.foreignDnsTarget()) }
             }
         }
 
-        item { Divider() }
+        item { HorizontalDivider() }
         item { SettingRow("Mihomo DNS", if (state.dns.port1053) ":1053 listening" else ":1053 down") }
         item { SectionHeader("监听与控制") }
         item {
             SettingRow(
                 "监听端口",
                 listOf(
-                    "5591 " + if (state.dns.port5591) "UP" else "DOWN",
-                    "5592 " + if (state.dns.port5592) "UP" else "DOWN",
+                    state.domestic.dnsPort.toString() + " " + if (state.dns.port5591) "UP" else "DOWN",
+                    state.foreign.dnsPort.toString() + " " + if (state.dns.port5592) "UP" else "DOWN",
                     "1053 " + if (state.dns.port1053) "UP" else "DOWN",
-                    "9090 " + if (state.dns.port9090) "API" else "DOWN"
+                    state.box.controllerPort.toString() + " " + if (state.dns.port9090) "API" else "DOWN"
                 ).joinToString(" · ")
             )
         }

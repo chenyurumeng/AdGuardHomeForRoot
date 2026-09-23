@@ -19,6 +19,7 @@ data class BoxState(
     val dnsHijackMode: String = "",
     val ipv6: String = "",
     val controller: String = "",
+    val controllerPort: Int = 9090,
     val userStopped: Boolean = false
 )
 
